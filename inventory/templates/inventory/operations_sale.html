@@ -1,0 +1,11 @@
+{% extends "inventory/base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block content %}
+    <div class="mb-4">
+        <div class="alert alert-info small mb-0">
+            Укажите фактическую цену продажи и способ оплаты. Сумма рассчитывается автоматически после сохранения.
+        </div>
+    </div>
+    {% include "inventory/partials/_operation_form.html" %}
+{% endblock %}

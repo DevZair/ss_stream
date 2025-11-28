@@ -1,0 +1,52 @@
+{% extends "inventory/base.html" %}
+{% block title %}Товары{% endblock %}
+{% block page_title %}Каталог товаров{% endblock %}
+{% block header_actions %}
+    <a href="{% url 'inventory:product_add' %}" class="btn btn-primary btn-icon"><i class="bi bi-plus-lg"></i> Добавить товар</a>
+    <a href="{% url 'inventory:warehouse_add' %}" class="btn btn-outline-secondary btn-icon"><i class="bi bi-buildings"></i> Новый склад</a>
+    <a href="{% url 'inventory:employee_add' %}" class="btn btn-outline-secondary btn-icon"><i class="bi bi-person-plus"></i> Новый сотрудник</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-modern align-middle">
+                <thead>
+                <tr>
+                    <th class="text-muted">#</th>
+                    <th>Название</th>
+                    <th>Категория</th>
+                    <th>Цена закупки</th>
+                    <th>Цена продажи</th>
+                    <th>Остаток</th>
+                    <th>Фото</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for product in products %}
+                    <tr>
+                        <td class="text-muted">{{ forloop.counter }}</td>
+                        <td class="fw-semibold">{{ product.name }}</td>
+                        <td>{{ product.category.name }}</td>
+                        <td class="fw-semibold">{{ product.purchase_price|floatformat:"2" }} ₸</td>
+                        <td class="fw-semibold">{{ product.selling_price|floatformat:"2" }} ₸</td>
+                        <td class="fw-bold">{{ product.total_stock|default_if_none:0 }}</td>
+                        <td>
+                            {% if product.photo %}
+                                <img src="{{ product.photo.url }}" alt="{{ product.name }}" width="46" height="46">
+                            {% else %}
+                                <span class="muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">Товаров пока нет</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+ </div>
+{% endblock %}

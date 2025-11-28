@@ -1,0 +1,48 @@
+{% extends "inventory/base.html" %}
+{% block title %}Склады{% endblock %}
+{% block page_title %}Склады{% endblock %}
+{% block header_actions %}
+    <a href="{% url 'inventory:warehouse_add' %}" class="btn btn-primary btn-icon"><i class="bi bi-plus-lg"></i> Добавить склад</a>
+    <a href="{% url 'inventory:employee_add' %}" class="btn btn-outline-secondary btn-icon"><i class="bi bi-person-plus"></i> Добавить сотрудника</a>
+{% endblock %}
+{% block content %}
+<div class="grid-3">
+    {% for warehouse in warehouses %}
+        <div class="card warehouse-card h-100">
+            <div class="card-body">
+                <div class="warehouse-header">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="icon-badge blue"><i class="bi bi-geo-alt"></i></div>
+                        <div>
+                            <div class="fw-bold fs-6 mb-1">{{ warehouse.name }}</div>
+                            <div class="muted small mb-1">Адрес</div>
+                            <div class="fw-semibold">{{ warehouse.location }}</div>
+                        </div>
+                    </div>
+                    <div class="badge-soft">Сотрудников: {{ warehouse.employees.all|length }}</div>
+                </div>
+
+                <div>
+                    <div class="muted small mb-1">Менеджер</div>
+                    <div class="fw-semibold">
+                        {% with manager=warehouse.employees.all|first %}
+                            {% if manager %}
+                                {{ manager.full_name }}
+                            {% else %}
+                                <span class="muted">Не назначен</span>
+                            {% endif %}
+                        {% endwith %}
+                    </div>
+                </div>
+
+                <div class="divider d-flex justify-content-between align-items-center">
+                    <span class="muted">Всего товаров:</span>
+                    <span class="fw-bold">{{ warehouse.total_stock|default:0 }}</span>
+                </div>
+            </div>
+        </div>
+    {% empty %}
+        <div class="alert alert-info w-100">Склады не созданы.</div>
+    {% endfor %}
+</div>
+{% endblock %}

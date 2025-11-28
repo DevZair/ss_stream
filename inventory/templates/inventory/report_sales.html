@@ -1,0 +1,140 @@
+{% extends "inventory/base.html" %}
+{% block title %}Отчет по продажам{% endblock %}
+{% block page_title %}Отчет по продажам{% endblock %}
+{% block header_actions %}
+    <a href="{{ export_url }}" class="btn btn-outline-secondary btn-icon"><i class="bi bi-download"></i> Экспорт в CSV</a>
+{% endblock %}
+{% block content %}
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="filter-bar">
+            <div class="flex-grow-1" style="min-width: 220px;">
+                <label class="form-label small text-muted mb-1">{{ form.start_date.label }}</label>
+                {{ form.start_date }}
+            </div>
+            <div class="flex-grow-1" style="min-width: 220px;">
+                <label class="form-label small text-muted mb-1">{{ form.end_date.label }}</label>
+                {{ form.end_date }}
+            </div>
+            <div class="d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary btn-icon"><i class="bi bi-search"></i> Показать</button>
+                <a href="{% url 'inventory:sales_report' %}" class="btn btn-soft">Сброс</a>
+            </div>
+        </form>
+        <div class="muted small mt-3">
+            Период: <strong>{{ start_date|default:"—" }}</strong> — <strong>{{ end_date|default:"—" }}</strong>
+        </div>
+    </div>
+</div>
+
+<div class="stats-grid mb-4">
+    <div class="card">
+        <div class="card-body stat-card">
+            <div class="icon-badge blue"><i class="bi bi-receipt"></i></div>
+            <div>
+                <h6>Количество продаж</h6>
+                <strong>{{ stats.total_qty }}</strong>
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body stat-card">
+            <div class="icon-badge" style="background:#eaf7f0;color:#1f9254;"><i class="bi bi-graph-up-arrow"></i></div>
+            <div>
+                <h6>Общий доход</h6>
+                <strong>{{ stats.total_amount }} ₸</strong>
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body stat-card">
+            <div class="icon-badge" style="background:#fff3e5;color:#e58e26;"><i class="bi bi-coin"></i></div>
+            <div>
+                <h6>Прибыль</h6>
+                <strong>{{ stats.total_profit }} ₸</strong>
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body stat-card">
+            <div class="icon-badge" style="background:#eaf1ff;color:#265dff;"><i class="bi bi-calendar-check"></i></div>
+            <div>
+                <h6>Продаж за период</h6>
+                <strong>{{ sales_count }}</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="fw-bold mb-3">Поступления по видам оплаты</h5>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="icon-badge" style="background:#eaf1ff;color:#265dff;"><i class="bi bi-phone"></i></div>
+                    <div>
+                        <div class="muted small">Kaspi</div>
+                        <div class="fw-bold fs-5">{{ stats.kaspi_total }} ₸</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="icon-badge" style="background:#e8f8ff;color:#0991d3;"><i class="bi bi-bank"></i></div>
+                    <div>
+                        <div class="muted small">Halyk</div>
+                        <div class="fw-bold fs-5">{{ stats.halyk_total }} ₸</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="icon-badge" style="background:#fff3e5;color:#e58e26;"><i class="bi bi-cash-stack"></i></div>
+                    <div>
+                        <div class="muted small">Наличные</div>
+                        <div class="fw-bold fs-5">{{ stats.cash_total }} ₸</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-modern align-middle">
+                <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Товар</th>
+                    <th>Кол-во</th>
+                    <th>Цена продажи</th>
+                    <th>Итого</th>
+                    <th>Метод оплаты</th>
+                    <th>Склад</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for sale in sales %}
+                    <tr>
+                        <td>{{ sale.created_at|date:"d.m.Y H:i" }}</td>
+                        <td class="fw-semibold">{{ sale.product.name }}</td>
+                        <td>{{ sale.quantity }}</td>
+                        <td>{{ sale.price }} ₸</td>
+                        <td class="fw-bold">{{ sale.total }} ₸</td>
+                        <td>{{ sale.get_payment_method_display }}</td>
+                        <td>{{ sale.warehouse.name }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">Продаж за выбранный период нет.</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
