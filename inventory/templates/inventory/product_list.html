@@ -3,6 +3,7 @@
 {% block page_title %}Каталог товаров{% endblock %}
 {% block header_actions %}
     <a href="{% url 'inventory:product_add' %}" class="btn btn-primary btn-icon"><i class="bi bi-plus-lg"></i> Добавить товар</a>
+    <a href="{% url 'inventory:category_add' %}" class="btn btn-outline-secondary btn-icon"><i class="bi bi-tags"></i> Новая категория</a>
     <a href="{% url 'inventory:warehouse_add' %}" class="btn btn-outline-secondary btn-icon"><i class="bi bi-buildings"></i> Новый склад</a>
     <a href="{% url 'inventory:employee_add' %}" class="btn btn-outline-secondary btn-icon"><i class="bi bi-person-plus"></i> Новый сотрудник</a>
 {% endblock %}

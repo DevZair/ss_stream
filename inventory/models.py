@@ -1,12 +1,22 @@
 from decimal import Decimal
+import uuid
 
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
+from django.db.models.signals import post_save
+from django.contrib.auth import get_user_model
 from django.utils import timezone
+
+
+def generate_warehouse_code() -> str:
+    return uuid.uuid4().hex[:8].upper()
 
 
 class Category(models.Model):
     name = models.CharField(max_length=150, unique=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ("name",)
@@ -18,8 +28,15 @@ class Category(models.Model):
 
 
 class Warehouse(models.Model):
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        default=generate_warehouse_code,
+        editable=False,
+    )
     name = models.CharField(max_length=150, unique=True)
     location = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ("name",)
@@ -30,11 +47,54 @@ class Warehouse(models.Model):
         return f"{self.name} ({self.location})"
 
 
+class WarehouseProfile(models.Model):
+    warehouse = models.OneToOneField(
+        Warehouse, on_delete=models.CASCADE, related_name="profile"
+    )
+    manager_name = models.CharField(max_length=255, blank=True)
+    contact_phone = models.CharField(max_length=50, blank=True)
+    capacity = models.PositiveIntegerField(default=0)
+    temperature_controlled = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Паспорт склада"
+        verbose_name_plural = "Паспорта складов"
+
+    def __str__(self) -> str:
+        return f"Паспорт {self.warehouse.name}"
+
+
 class Employee(models.Model):
+    POSITION_CHOICES = [
+        ("admin", "Админ"),
+        ("storekeeper", "Кладовщик"),
+        ("cashier", "Кассир"),
+        ("accountant", "Бухгалтер"),
+    ]
+    ACTIVE = "active"
+    BLOCKED = "blocked"
+    STATUS_CHOICES = [
+        (ACTIVE, "Активен"),
+        (BLOCKED, "Заблокирован"),
+    ]
+
+    user = models.OneToOneField(
+        get_user_model(),
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="employee_profile",
+    )
     full_name = models.CharField(max_length=255)
-    position = models.CharField(max_length=150)
+    position = models.CharField(max_length=50, choices=POSITION_CHOICES, default="storekeeper")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=ACTIVE)
     warehouse = models.ForeignKey(
         Warehouse, on_delete=models.CASCADE, related_name="employees"
+    )
+    access_sections = models.ManyToManyField(
+        "AccessSection",
+        blank=True,
+        related_name="employees",
     )
 
     class Meta:
@@ -43,7 +103,19 @@ class Employee(models.Model):
         verbose_name_plural = "Сотрудники"
 
     def __str__(self) -> str:
-        return f"{self.full_name} — {self.position}"
+        return f"{self.full_name} — {self.get_position_display()}"
+
+
+class AccessSection(models.Model):
+    slug = models.SlugField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+
+    class Meta:
+        verbose_name = "Раздел доступа"
+        verbose_name_plural = "Разделы доступа"
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class Product(models.Model):
@@ -111,7 +183,7 @@ class Incoming(models.Model):
         Warehouse, on_delete=models.CASCADE, related_name="incoming"
     )
     quantity = models.PositiveIntegerField()
-    date = models.DateField(default=timezone.now)
+    date = models.DateField(default=timezone.now, db_index=True)
 
     class Meta:
         ordering = ("-date",)
@@ -144,7 +216,7 @@ class Movement(models.Model):
         related_name="movements_to",
     )
     quantity = models.PositiveIntegerField()
-    date = models.DateField(default=timezone.now)
+    date = models.DateField(default=timezone.now, db_index=True)
 
     class Meta:
         ordering = ("-date",)
@@ -187,7 +259,7 @@ class Sale(models.Model):
         max_digits=12, decimal_places=2, editable=False, default=Decimal("0.00")
     )
     payment_method = models.CharField(max_length=10, choices=PAYMENT_METHODS)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
         ordering = ("-created_at",)
@@ -210,9 +282,27 @@ class Sale(models.Model):
 
 
 class SalesReport(models.Model):
+    SALE = "sale"
+    MONTHLY = "monthly"
+    REPORT_TYPES = [
+        (SALE, "По продажам"),
+        (MONTHLY, "Итоговый отчет"),
+    ]
+    DRAFT = "draft"
+    FINAL = "final"
+    STATUSES = [
+        (DRAFT, "Черновик"),
+        (FINAL, "Готов"),
+    ]
+
     sale = models.ForeignKey(
         Sale, on_delete=models.CASCADE, related_name="reports"
     )
+    report_type = models.CharField(
+        max_length=20, choices=REPORT_TYPES, default=SALE
+    )
+    status = models.CharField(max_length=20, choices=STATUSES, default=FINAL)
+    notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -221,4 +311,12 @@ class SalesReport(models.Model):
         verbose_name_plural = "Отчеты по продажам"
 
     def __str__(self) -> str:
-        return f"Отчет #{self.pk} — продажа {self.sale_id}"
+        return f"Отчет #{self.pk} — продажа {self.sale_id} ({self.get_report_type_display()})"
+
+
+def _ensure_warehouse_profile(sender, instance, created, **kwargs):
+    if created:
+        WarehouseProfile.objects.create(warehouse=instance)
+
+
+post_save.connect(_ensure_warehouse_profile, sender=Warehouse)

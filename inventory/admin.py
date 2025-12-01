@@ -6,11 +6,13 @@ from .models import (
     Employee,
     Incoming,
     Movement,
+    AccessSection,
     Product,
     Sale,
     SalesReport,
     Stock,
     Warehouse,
+    WarehouseProfile,
 )
 
 
@@ -18,6 +20,13 @@ class EmployeeInline(admin.TabularInline):
     model = Employee
     extra = 0
     fields = ("full_name", "position")
+
+
+class WarehouseProfileInline(admin.StackedInline):
+    model = WarehouseProfile
+    extra = 0
+    max_num = 1
+    can_delete = False
 
 
 class WarehouseStockInline(admin.TabularInline):
@@ -38,23 +47,25 @@ class ProductStockInline(admin.TabularInline):
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ("name",)
+    list_display = ("name", "is_active", "created_at")
     search_fields = ("name",)
+    list_filter = ("is_active",)
 
 
 @admin.register(Warehouse)
 class WarehouseAdmin(admin.ModelAdmin):
-    list_display = ("name", "location")
+    list_display = ("code", "name", "location", "created_at")
     list_filter = ("location",)
-    search_fields = ("name", "location")
-    inlines = (EmployeeInline, WarehouseStockInline)
+    search_fields = ("code", "name", "location")
+    inlines = (WarehouseProfileInline, EmployeeInline, WarehouseStockInline)
 
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ("full_name", "position", "warehouse")
-    list_filter = ("warehouse",)
-    search_fields = ("full_name", "position")
+    list_display = ("full_name", "position", "status", "warehouse", "user")
+    list_filter = ("warehouse", "status", "position")
+    search_fields = ("full_name", "position", "user__username")
+    filter_horizontal = ("access_sections",)
 
 
 @admin.register(Product)
@@ -121,6 +132,12 @@ class SaleAdmin(admin.ModelAdmin):
 
 @admin.register(SalesReport)
 class SalesReportAdmin(admin.ModelAdmin):
-    list_display = ("sale", "created_at")
+    list_display = ("sale", "report_type", "status", "created_at")
     date_hierarchy = "created_at"
     search_fields = ("sale__product__name",)
+
+
+@admin.register(AccessSection)
+class AccessSectionAdmin(admin.ModelAdmin):
+    list_display = ("slug", "name")
+    search_fields = ("slug", "name")

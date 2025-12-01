@@ -11,38 +11,71 @@
 </head>
 <body>
 <div class="app-shell">
+    {% if request.user.is_authenticated %}
+            {% with current=request.resolver_match.url_name %}
+            {% with allowed=accessible_sections %}
     <aside class="app-sidebar">
         <div class="app-sidebar__brand">
             <h1>Warehouse</h1>
             <span>Складской учет</span>
         </div>
         <nav class="sidebar-nav">
-            {% with current=request.resolver_match.url_name %}
+                {% if request.user.is_superuser or 'categories' in allowed %}
+                <a class="sidebar-link {% if current == 'category_list' or current == 'category_add' %}active{% endif %}" href="{% url 'inventory:category_list' %}">
+                    <i class="bi bi-tags"></i>
+                    <span>Категории</span>
+                </a>
+                {% endif %}
+                {% if request.user.is_superuser or 'products' in allowed %}
                 <a class="sidebar-link {% if current == 'product_list' or current == 'product_add' %}active{% endif %}" href="{% url 'inventory:product_list' %}">
                     <i class="bi bi-box-seam"></i>
                     <span>Товары</span>
                 </a>
+                {% endif %}
+                {% if request.user.is_superuser or 'employees' in allowed %}
+                <a class="sidebar-link {% if current == 'employee_list' or current == 'employee_add' or current == 'employee_edit' %}active{% endif %}" href="{% url 'inventory:employee_list' %}">
+                    <i class="bi bi-people"></i>
+                    <span>Сотрудники</span>
+                </a>
+                {% endif %}
+                {% if request.user.is_superuser or 'warehouses' in allowed %}
                 <a class="sidebar-link {% if current == 'warehouse_list' or current == 'warehouse_add' or current == 'employee_add' %}active{% endif %}" href="{% url 'inventory:warehouse_list' %}">
                     <i class="bi bi-building"></i>
                     <span>Склады</span>
                 </a>
+                {% endif %}
+                {% if request.user.is_superuser or 'stocks' in allowed %}
                 <a class="sidebar-link {% if current == 'stock_list' %}active{% endif %}" href="{% url 'inventory:stock_list' %}">
                     <i class="bi bi-bar-chart"></i>
                     <span>Остатки</span>
                 </a>
+                {% endif %}
+                {% if request.user.is_superuser or 'reports' in allowed %}
                 <a class="sidebar-link {% if current == 'sales_report' %}active{% endif %}" href="{% url 'inventory:sales_report' %}">
                     <i class="bi bi-clipboard-data"></i>
                     <span>Отчеты</span>
                 </a>
-            {% endwith %}
+                {% endif %}
         </nav>
         <div class="sidebar-actions">
             <div class="text-uppercase muted small fw-bold px-1">Операции</div>
+            {% if request.user.is_superuser or 'incoming' in allowed %}
             <a class="btn btn-outline-light" href="{% url 'inventory:incoming_add' %}">Приход</a>
+            {% endif %}
+            {% if request.user.is_superuser or 'movements' in allowed %}
             <a class="btn btn-outline-light" href="{% url 'inventory:movement_add' %}">Перемещение</a>
+            {% endif %}
+            {% if request.user.is_superuser or 'sales' in allowed %}
             <a class="btn btn-warning" href="{% url 'inventory:sale_add' %}">Продажа</a>
+            {% endif %}
+            {% if not request.user.is_superuser and 'incoming' not in allowed and 'movements' not in allowed and 'sales' not in allowed %}
+            <div class="text-muted small px-1">Нет доступа</div>
+            {% endif %}
         </div>
     </aside>
+        {% endwith %}
+        {% endwith %}
+    {% endif %}
     <main class="app-main">
         <header class="app-header">
             <div class="header-inner">
@@ -51,6 +84,12 @@
                     <small>{% block page_subtitle %}{% endblock %}</small>
                 </div>
                 <div class="toolbar">
+                    {% if request.user.is_authenticated %}
+                        <span class="me-3 text-muted">{{ request.user.username }}</span>
+                        <a href="{% url 'inventory:logout' %}" class="btn btn-outline-secondary btn-sm">Выйти</a>
+                    {% else %}
+                        <a href="{% url 'inventory:login' %}" class="btn btn-primary btn-sm">Войти</a>
+                    {% endif %}
                     {% block header_actions %}{% endblock %}
                 </div>
             </div>

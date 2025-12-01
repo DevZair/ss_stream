@@ -1,5 +1,5 @@
 #!/bin/bash
 set -euo pipefail
 
-python manage.py makemigrations inventory
-python manage.py migrate
+python3 manage.py makemigrations inventory
+python3 manage.py migrate

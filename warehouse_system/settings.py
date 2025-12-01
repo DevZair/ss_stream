@@ -53,6 +53,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'inventory.context_processors.accessible_sections',
             ],
         },
     },
@@ -75,6 +76,13 @@ DATABASES = {
         },
     }
 }
+
+# Для локальных тестов можно переключиться на SQLite, установив DJANGO_DB_ENGINE=sqlite
+if os.environ.get("DJANGO_DB_ENGINE") == "sqlite":
+    DATABASES["default"] = {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
 
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -126,3 +134,7 @@ JAZZMIN_UI_TWEAKS = {
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+LOGIN_URL = "inventory:login"
+LOGIN_REDIRECT_URL = "inventory:product_list"
+LOGOUT_REDIRECT_URL = "inventory:login"

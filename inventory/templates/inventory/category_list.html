@@ -1,0 +1,41 @@
+{% extends "inventory/base.html" %}
+{% block title %}Категории{% endblock %}
+{% block page_title %}Категории товаров{% endblock %}
+{% block header_actions %}
+    <a href="{% url 'inventory:category_add' %}" class="btn btn-primary btn-icon"><i class="bi bi-plus-lg"></i> Добавить категорию</a>
+    <a href="{% url 'inventory:product_add' %}" class="btn btn-outline-secondary btn-icon"><i class="bi bi-box-seam"></i> Добавить товар</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-modern align-middle">
+                <thead>
+                <tr>
+                    <th class="text-muted">#</th>
+                    <th>Название</th>
+                    <th>Активна</th>
+                    <th>Товаров</th>
+                    <th>Создана</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for category in categories %}
+                    <tr>
+                        <td class="text-muted">{{ forloop.counter }}</td>
+                        <td class="fw-semibold">{{ category.name }}</td>
+                        <td>{% if category.is_active %}<span class="badge bg-success">Да</span>{% else %}<span class="badge bg-secondary">Нет</span>{% endif %}</td>
+                        <td class="fw-bold">{{ category.products_count }}</td>
+                        <td class="text-muted">{{ category.created_at|date:"Y-m-d" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">Категорий пока нет</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+ </div>
+{% endblock %}

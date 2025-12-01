@@ -1,8 +1,11 @@
 import csv
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import get_object_or_404
 from django.core.exceptions import ValidationError
 from django.db.models import (
+    Count,
     DecimalField,
     ExpressionWrapper,
     F,
@@ -18,7 +21,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .forms import (
+    CategoryForm,
     EmployeeForm,
+    EmployeeUpdateForm,
     IncomingForm,
     MovementForm,
     ProductForm,
@@ -26,10 +31,12 @@ from .forms import (
     SalesReportFilterForm,
     WarehouseForm,
 )
-from .models import Employee, Product, Sale, Stock, Warehouse
+from .models import Category, Employee, Product, Sale, Stock, Warehouse
 
 
 def product_list(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
     products = (
         Product.objects.select_related("category")
         .annotate(total_stock=Coalesce(Sum("stocks__quantity"), 0))
@@ -43,6 +50,8 @@ def product_list(request):
 
 
 def product_create(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
     if request.method == "POST":
         form = ProductForm(request.POST, request.FILES)
         if form.is_valid():
@@ -58,7 +67,38 @@ def product_create(request):
     )
 
 
+def category_list(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
+    categories = Category.objects.annotate(products_count=Count("products")).order_by("name")
+    return render(
+        request,
+        "inventory/category_list.html",
+        {"categories": categories},
+    )
+
+
+def category_create(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
+    if request.method == "POST":
+        form = CategoryForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Категория добавлена.")
+            return redirect("inventory:category_list")
+    else:
+        form = CategoryForm()
+    return render(
+        request,
+        "inventory/product_form.html",
+        {"form": form, "title": "Добавить категорию", "submit_label": "Сохранить"},
+    )
+
+
 def warehouse_list(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
     warehouses = (
         Warehouse.objects.annotate(total_stock=Coalesce(Sum("stocks__quantity"), 0))
         .prefetch_related(
@@ -78,6 +118,8 @@ def warehouse_list(request):
 
 
 def warehouse_create(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
     if request.method == "POST":
         form = WarehouseForm(request.POST)
         if form.is_valid():
@@ -94,6 +136,8 @@ def warehouse_create(request):
 
 
 def employee_create(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
     if request.method == "POST":
         form = EmployeeForm(request.POST)
         if form.is_valid():
@@ -109,7 +153,43 @@ def employee_create(request):
     )
 
 
+def employee_list(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
+    employees = (
+        Employee.objects.select_related("warehouse", "user")
+        .prefetch_related("access_sections")
+        .order_by("full_name")
+    )
+    return render(
+        request,
+        "inventory/employee_list.html",
+        {"employees": employees},
+    )
+
+
+def employee_update(request, pk):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
+    employee = get_object_or_404(Employee.objects.select_related("user"), pk=pk)
+    if request.method == "POST":
+        form = EmployeeUpdateForm(request.POST, instance=employee)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Сотрудник обновлен.")
+            return redirect("inventory:employee_list")
+    else:
+        form = EmployeeUpdateForm(instance=employee)
+    return render(
+        request,
+        "inventory/product_form.html",
+        {"form": form, "title": "Редактировать сотрудника", "submit_label": "Сохранить"},
+    )
+
+
 def incoming_create(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
     return _handle_stock_operation(
         request=request,
         form_class=IncomingForm,
@@ -121,6 +201,8 @@ def incoming_create(request):
 
 
 def movement_create(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
     return _handle_stock_operation(
         request=request,
         form_class=MovementForm,
@@ -132,6 +214,8 @@ def movement_create(request):
 
 
 def sale_create(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
     return _handle_stock_operation(
         request=request,
         form_class=SaleForm,
@@ -177,6 +261,8 @@ def _handle_stock_operation(
 
 
 def stock_list(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
     stocks = (
         Stock.objects.select_related("warehouse", "product", "product__category")
         .order_by("warehouse__name", "product__name")
@@ -189,6 +275,8 @@ def stock_list(request):
 
 
 def sales_report(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
     sales = (
         Sale.objects.select_related("product", "warehouse")
         .order_by("-created_at")

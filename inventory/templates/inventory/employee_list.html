@@ -1,0 +1,64 @@
+{% extends "inventory/base.html" %}
+{% block title %}Сотрудники{% endblock %}
+{% block page_title %}Сотрудники{% endblock %}
+{% block header_actions %}
+    <a href="{% url 'inventory:employee_add' %}" class="btn btn-primary btn-icon"><i class="bi bi-plus-lg"></i> Добавить сотрудника</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-modern align-middle">
+                <thead>
+                <tr>
+                    <th class="text-muted">#</th>
+                    <th>ФИО</th>
+                    <th>Логин</th>
+                    <th>Статус</th>
+                    <th>Должность</th>
+                    <th>Склад</th>
+                    <th>Разделы доступа</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for employee in employees %}
+                    <tr>
+                        <td class="text-muted">{{ forloop.counter }}</td>
+                        <td class="fw-semibold">{{ employee.full_name }}</td>
+                        <td>{% if employee.user %}{{ employee.user.username }}{% else %}—{% endif %}</td>
+                        <td>
+                            {% if employee.user and employee.user.is_active %}
+                                <span class="badge bg-success">Активен</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Заблокирован</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ employee.get_position_display }}</td>
+                        <td>{{ employee.warehouse }}</td>
+                        <td>
+                            {% if employee.access_sections.all %}
+                                {% for section in employee.access_sections.all %}
+                                    <span class="badge bg-light text-dark border">{{ section.name }}</span>
+                                {% empty %}
+                                    <span class="text-muted">—</span>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-primary" href="{% url 'inventory:employee_edit' employee.pk %}"><i class="bi bi-pencil"></i> Редактировать</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">Сотрудников пока нет</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+ </div>
+{% endblock %}
