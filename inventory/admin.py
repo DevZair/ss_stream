@@ -7,6 +7,7 @@ from .models import (
     Incoming,
     Movement,
     AccessSection,
+    ActivityLog,
     Product,
     Sale,
     SalesReport,
@@ -123,10 +124,10 @@ class MovementAdmin(admin.ModelAdmin):
 
 @admin.register(Sale)
 class SaleAdmin(admin.ModelAdmin):
-    list_display = ("product", "warehouse", "quantity", "price", "total", "payment_method", "created_at")
+    list_display = ("product", "warehouse", "quantity", "price", "total", "payment_method", "seller", "created_at")
     list_filter = ("warehouse", "product__category", "payment_method", "created_at")
     date_hierarchy = "created_at"
-    search_fields = ("product__name",)
+    search_fields = ("product__name", "seller__username")
     readonly_fields = ("total",)
 
 
@@ -141,3 +142,10 @@ class SalesReportAdmin(admin.ModelAdmin):
 class AccessSectionAdmin(admin.ModelAdmin):
     list_display = ("slug", "name")
     search_fields = ("slug", "name")
+
+
+@admin.register(ActivityLog)
+class ActivityLogAdmin(admin.ModelAdmin):
+    list_display = ("action", "user", "employee", "entity_type", "entity_id", "created_at")
+    list_filter = ("entity_type", "created_at")
+    search_fields = ("action", "details", "user__username", "employee__full_name")

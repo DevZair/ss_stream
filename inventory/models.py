@@ -194,9 +194,11 @@ class Incoming(models.Model):
         return f"{self.product} → {self.warehouse} (+{self.quantity})"
 
     def save(self, *args, **kwargs):
-        if self.pk:
-            raise ValidationError("Редактирование приходов запрещено.")
         with transaction.atomic():
+            if self.pk:
+                prev = Incoming.objects.select_for_update().get(pk=self.pk)
+                # вернуть старый приход
+                adjust_stock(prev.warehouse, prev.product, -prev.quantity)
             super().save(*args, **kwargs)
             adjust_stock(self.warehouse, self.product, self.quantity)
 
@@ -245,6 +247,7 @@ class Sale(models.Model):
         ("kaspi", "Kaspi"),
         ("halyk", "Halyk"),
         ("cash", "Наличные"),
+        ("mixed", "Смешанная"),
     ]
 
     product = models.ForeignKey(
@@ -259,6 +262,17 @@ class Sale(models.Model):
         max_digits=12, decimal_places=2, editable=False, default=Decimal("0.00")
     )
     payment_method = models.CharField(max_length=10, choices=PAYMENT_METHODS)
+    cash_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    halyk_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    kaspi_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    payment_details = models.CharField(max_length=255, blank=True)
+    seller = models.ForeignKey(
+        get_user_model(),
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="sales_made",
+    )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
@@ -275,6 +289,27 @@ class Sale(models.Model):
         if not self.price:
             self.price = self.product.selling_price
         self.total = Decimal(self.price) * Decimal(self.quantity)
+
+        # Распределение платежей
+        if self.payment_method != "mixed":
+            self.cash_amount = self.halyk_amount = self.kaspi_amount = Decimal("0.00")
+            if self.payment_method == "cash":
+                self.cash_amount = self.total
+            elif self.payment_method == "halyk":
+                self.halyk_amount = self.total
+            elif self.payment_method == "kaspi":
+                self.kaspi_amount = self.total
+        else:
+            paid_sum = sum([
+                Decimal(self.cash_amount or 0),
+                Decimal(self.halyk_amount or 0),
+                Decimal(self.kaspi_amount or 0),
+            ])
+            if paid_sum != self.total:
+                raise ValidationError("Сумма оплат должна совпадать с итогом продажи.")
+            if paid_sum <= 0:
+                raise ValidationError("Укажите суммы для смешанной оплаты.")
+
         with transaction.atomic():
             adjust_stock(self.warehouse, self.product, -self.quantity)
             super().save(*args, **kwargs)
@@ -312,6 +347,42 @@ class SalesReport(models.Model):
 
     def __str__(self) -> str:
         return f"Отчет #{self.pk} — продажа {self.sale_id} ({self.get_report_type_display()})"
+
+
+class ActivityLog(models.Model):
+    user = models.ForeignKey(
+        get_user_model(), null=True, blank=True, on_delete=models.SET_NULL, related_name="activity_logs"
+    )
+    employee = models.ForeignKey(
+        "Employee", null=True, blank=True, on_delete=models.SET_NULL, related_name="activity_logs"
+    )
+    action = models.CharField(max_length=255)
+    entity_type = models.CharField(max_length=50, blank=True)
+    entity_id = models.PositiveIntegerField(null=True, blank=True)
+    details = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        verbose_name = "Активность сотрудника"
+        verbose_name_plural = "Активности сотрудников"
+
+    def __str__(self) -> str:
+        return f"{self.action} ({self.created_at:%Y-%m-%d %H:%M})"
+
+
+def log_activity(user, action: str, *, entity=None, details: str = ""):
+    employee = getattr(user, "employee_profile", None)
+    entity_type = entity.__class__.__name__ if entity else ""
+    entity_id = entity.pk if entity and hasattr(entity, "pk") else None
+    ActivityLog.objects.create(
+        user=user if user.is_authenticated else None,
+        employee=employee,
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        details=details,
+    )
 
 
 def _ensure_warehouse_profile(sender, instance, created, **kwargs):

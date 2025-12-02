@@ -55,6 +55,9 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'inventory.context_processors.accessible_sections',
             ],
+            'libraries': {
+                'inventory_extras': 'inventory.templatetags.inventory_extras',
+            },
         },
     },
 ]
@@ -77,7 +80,6 @@ DATABASES = {
     }
 }
 
-# Для локальных тестов можно переключиться на SQLite, установив DJANGO_DB_ENGINE=sqlite
 if os.environ.get("DJANGO_DB_ENGINE") == "sqlite":
     DATABASES["default"] = {
         "ENGINE": "django.db.backends.sqlite3",

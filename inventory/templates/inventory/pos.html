@@ -1,0 +1,152 @@
+{% extends "inventory/base.html" %}
+{% load static inventory_extras %}
+{% block title %}Касса{% endblock %}
+{% block page_title %}Касса{% endblock %}
+{% block content %}
+<div class="pos-simple card">
+  <div class="card-body">
+    <form method="post" class="needs-validation" novalidate>
+      {% csrf_token %}
+      <div class="row g-3 align-items-end mb-3">
+        <div class="col-md-4">
+          <label class="form-label" for="{{ form.warehouse.id_for_label }}">Склад</label>
+          {{ form.warehouse }}
+        </div>
+        <div class="col-md-8 text-end text-muted small">
+          Остатков: {{ warehouse_stock|length }} позиций
+        </div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.product.id_for_label }}">Товар</label>
+          {{ form.product }}
+          <div class="text-muted small mt-1">На складе: <span id="stock-local">—</span>, всего: <span id="stock-total">—</span></div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="{{ form.quantity.id_for_label }}">Кол-во</label>
+          {{ form.quantity }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="{{ form.price.id_for_label }}">Цена</label>
+          {{ form.price }}
+        </div>
+      </div>
+
+      <div class="row g-3 mt-3">
+        <div class="col-md-4">
+          <label class="form-label" for="{{ form.payment_method.id_for_label }}">Метод оплаты</label>
+          {{ form.payment_method }}
+        </div>
+        <div class="col-md-8 d-flex align-items-center justify-content-end">
+          <div class="me-3 text-muted">Итого:</div>
+          <input type="text" class="form-control w-auto text-end fw-bold" id="pos-total" readonly value="0">
+        </div>
+      </div>
+
+      <div class="row g-3 mt-2">
+        <div class="col-md-4">
+          <label class="form-label" for="{{ form.cash_amount.id_for_label }}">Наличные</label>
+          {{ form.cash_amount }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="{{ form.halyk_amount.id_for_label }}">Halyk/Карта</label>
+          {{ form.halyk_amount }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="{{ form.kaspi_amount.id_for_label }}">Kaspi</label>
+          {{ form.kaspi_amount }}
+        </div>
+      </div>
+
+      <div class="mt-3">
+        <label class="form-label" for="{{ form.payment_details.id_for_label }}">Комментарий</label>
+        {{ form.payment_details }}
+      </div>
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger mt-3">
+          {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="d-flex justify-content-between align-items-center mt-4">
+        <button type="reset" class="btn btn-light" id="new-order">Очистить</button>
+        <button type="submit" class="btn btn-success">Завершить заказ</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+.pos-simple { border: 1px solid #eef1f5; box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06); }
+.pos-simple label { font-weight: 600; }
+.pos-simple input, .pos-simple select, .pos-simple textarea { border-radius: 10px; }
+</style>
+
+{% if price_map %}
+{{ price_map|json_script:"price-map" }}
+{{ stock_map|json_script:"stock-map" }}
+<script>
+  (function() {
+    const priceData = JSON.parse(document.getElementById('price-map').textContent || '{}');
+    window.stockData = JSON.parse(document.getElementById('stock-map').textContent || '{}');
+    const productSelect = document.getElementById('id_product');
+    const priceInput = document.getElementById('id_price');
+    const qtyInput = document.getElementById('id_quantity');
+    const totalInput = document.getElementById('pos-total');
+    const methodSelect = document.getElementById('id_payment_method');
+    const cashInput = document.getElementById('id_cash_amount');
+    const halykInput = document.getElementById('id_halyk_amount');
+    const kaspiInput = document.getElementById('id_kaspi_amount');
+    const stockLocalEl = document.getElementById('stock-local');
+    const stockTotalEl = document.getElementById('stock-total');
+
+    const parseVal = (el) => {
+      const v = parseFloat(el && el.value);
+      return isNaN(v) ? 0 : v;
+    };
+
+    const setTotals = () => {
+      const total = (parseVal(priceInput) * (parseVal(qtyInput) || 1)).toFixed(2);
+      if (totalInput) totalInput.value = total;
+      applySplit(total);
+    };
+
+    const applySplit = (totalStr) => {
+      const total = parseFloat(totalStr || totalInput.value || 0) || 0;
+      const method = methodSelect ? (methodSelect.value || 'cash') : 'cash';
+      if (method !== 'mixed') {
+        if (cashInput) cashInput.value = method === 'cash' ? total : 0;
+        if (halykInput) halykInput.value = method === 'halyk' ? total : 0;
+        if (kaspiInput) kaspiInput.value = method === 'kaspi' ? total : 0;
+      }
+    };
+
+    const setPriceFromProduct = () => {
+      const productId = productSelect.value;
+      const suggested = priceData[productId];
+      if (suggested && (!priceInput.value || Number(priceInput.value) === 0)) {
+        priceInput.value = suggested;
+      }
+      const stock = (window.stockData && window.stockData[productId]) || {};
+      if (stockLocalEl) stockLocalEl.textContent = stock.local ?? '0';
+      if (stockTotalEl) stockTotalEl.textContent = stock.total ?? '0';
+      setTotals();
+    };
+
+    if (productSelect) productSelect.addEventListener('change', setPriceFromProduct);
+    if (priceInput) priceInput.addEventListener('input', setTotals);
+    if (qtyInput) qtyInput.addEventListener('input', setTotals);
+    if (methodSelect) methodSelect.addEventListener('change', () => applySplit());
+
+    document.querySelector('form')?.addEventListener('submit', () => {
+      if (methodSelect && !methodSelect.value) methodSelect.value = 'cash';
+      setTotals();
+    });
+
+    setPriceFromProduct();
+  })();
+</script>
+{% endif %}
+{% endblock %}

@@ -38,6 +38,24 @@
                     <span>Сотрудники</span>
                 </a>
                 {% endif %}
+                {% if request.user.is_superuser or 'orders' in allowed %}
+                <a class="sidebar-link {% if current == 'orders_list' %}active{% endif %}" href="{% url 'inventory:orders_list' %}">
+                    <i class="bi bi-receipt"></i>
+                    <span>Заказы</span>
+                </a>
+                {% endif %}
+                {% if request.user.is_superuser or 'logs' in allowed %}
+                <a class="sidebar-link {% if current == 'logs_list' %}active{% endif %}" href="{% url 'inventory:logs_list' %}">
+                    <i class="bi bi-clipboard-pulse"></i>
+                    <span>Логи</span>
+                </a>
+                {% endif %}
+                {% if request.user.is_superuser or 'sales' in allowed %}
+                <a class="sidebar-link {% if current == 'pos' %}active{% endif %}" href="{% url 'inventory:pos' %}">
+                    <i class="bi bi-cash-stack"></i>
+                    <span>Касса</span>
+                </a>
+                {% endif %}
                 {% if request.user.is_superuser or 'warehouses' in allowed %}
                 <a class="sidebar-link {% if current == 'warehouse_list' or current == 'warehouse_add' or current == 'employee_add' %}active{% endif %}" href="{% url 'inventory:warehouse_list' %}">
                     <i class="bi bi-building"></i>
@@ -65,10 +83,7 @@
             {% if request.user.is_superuser or 'movements' in allowed %}
             <a class="btn btn-outline-light" href="{% url 'inventory:movement_add' %}">Перемещение</a>
             {% endif %}
-            {% if request.user.is_superuser or 'sales' in allowed %}
-            <a class="btn btn-warning" href="{% url 'inventory:sale_add' %}">Продажа</a>
-            {% endif %}
-            {% if not request.user.is_superuser and 'incoming' not in allowed and 'movements' not in allowed and 'sales' not in allowed %}
+            {% if not request.user.is_superuser and 'incoming' not in allowed and 'movements' not in allowed %}
             <div class="text-muted small px-1">Нет доступа</div>
             {% endif %}
         </div>

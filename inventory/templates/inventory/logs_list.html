@@ -1,0 +1,40 @@
+{% extends "inventory/base.html" %}
+{% block title %}Логи{% endblock %}
+{% block page_title %}Логи действий сотрудников{% endblock %}
+{% block header_actions %}{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-modern align-middle">
+                <thead>
+                <tr>
+                    <th class="text-muted">#</th>
+                    <th>Время</th>
+                    <th>Пользователь</th>
+                    <th>Сотрудник</th>
+                    <th>Действие</th>
+                    <th>Детали</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for log in logs %}
+                    <tr>
+                        <td class="text-muted">{{ forloop.counter }}</td>
+                        <td>{{ log.created_at|date:"Y-m-d H:i" }}</td>
+                        <td>{% if log.user %}{{ log.user.username }}{% else %}—{% endif %}</td>
+                        <td>{% if log.employee %}{{ log.employee.full_name }}{% else %}—{% endif %}</td>
+                        <td>{{ log.action }}</td>
+                        <td class="text-muted small">{{ log.details|default:"—" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">Логов пока нет</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+ </div>
+{% endblock %}

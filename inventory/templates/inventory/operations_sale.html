@@ -7,5 +7,130 @@
             Укажите фактическую цену продажи и способ оплаты. Сумма рассчитывается автоматически после сохранения.
         </div>
     </div>
-    {% include "inventory/partials/_operation_form.html" %}
+    <div class="row justify-content-center">
+        <div class="col-lg-6 col-xl-5">
+            <div class="card shadow-sm p-4">
+                <form method="post" class="needs-validation" novalidate>
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.product.id_for_label }}">{{ form.product.label }}</label>
+                        {{ form.product }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.warehouse.id_for_label }}">{{ form.warehouse.label }}</label>
+                        {{ form.warehouse }}
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label" for="{{ form.quantity.id_for_label }}">{{ form.quantity.label }}</label>
+                            {{ form.quantity }}
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="{{ form.price.id_for_label }}">{{ form.price.label }}</label>
+                            {{ form.price }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3 mt-3">
+                        <label class="form-label">Способ оплаты</label>
+                        {{ form.payment_method }}
+                    </div>
+
+                    <div class="border rounded p-3 mb-3" id="split-payments">
+                        <div class="fw-semibold mb-2">Суммы по оплате</div>
+                        <div class="mb-2">
+                            <label class="form-label" for="{{ form.cash_amount.id_for_label }}">Наличные</label>
+                            {{ form.cash_amount }}
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label" for="{{ form.halyk_amount.id_for_label }}">Halyk/Карта</label>
+                            {{ form.halyk_amount }}
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label" for="{{ form.kaspi_amount.id_for_label }}">Kaspi</label>
+                            {{ form.kaspi_amount }}
+                        </div>
+                        <small class="text-muted">Для смешанной оплаты заполните нужные поля, сумма должна равняться итогу продажи.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.payment_details.id_for_label }}">{{ form.payment_details.label }}</label>
+                        {{ form.payment_details }}
+                        <div class="form-text">Например: Halyk 2000 + наличные 2000</div>
+                    </div>
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-success">{{ submit_label|default:"Сохранить" }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% if price_map %}
+    {{ price_map|json_script:"price-map" }}
+    <script>
+        (function() {
+            const priceData = JSON.parse(document.getElementById('price-map').textContent || '{}');
+            const productSelect = document.getElementById('id_product');
+            const priceInput = document.getElementById('id_price');
+            const qtyInput = document.getElementById('id_quantity');
+            const methodSelect = document.getElementById('id_payment_method');
+            const cashInput = document.getElementById('id_cash_amount');
+            const halykInput = document.getElementById('id_halyk_amount');
+            const kaspiInput = document.getElementById('id_kaspi_amount');
+            if (!productSelect || !priceInput) return;
+
+            const setPriceFromProduct = () => {
+                const productId = productSelect.value;
+                const suggested = priceData[productId];
+                if (!suggested) return;
+                const current = priceInput.value;
+                if (!current || Number(current) === 0) {
+                    priceInput.value = suggested;
+                }
+            };
+
+            const parseVal = (el) => {
+                const v = parseFloat(el.value);
+                return isNaN(v) ? 0 : v;
+            };
+
+            const applySplit = () => {
+                const total = (parseVal(priceInput) * parseVal(qtyInput || {value:1})).toFixed(2);
+                const method = methodSelect ? methodSelect.value : '';
+                const disableNonMixed = (state) => {
+                    [cashInput, halykInput, kaspiInput].forEach((el) => {
+                        if (!el) return;
+                        el.disabled = state;
+                    });
+                };
+                if (method !== 'mixed') {
+                    disableNonMixed(true);
+                    if (cashInput) cashInput.value = method === 'cash' ? total : 0;
+                    if (halykInput) halykInput.value = method === 'halyk' ? total : 0;
+                    if (kaspiInput) kaspiInput.value = method === 'kaspi' ? total : 0;
+                } else {
+                    disableNonMixed(false);
+                }
+            };
+
+            productSelect.addEventListener('change', setPriceFromProduct);
+            if (qtyInput) qtyInput.addEventListener('input', applySplit);
+            if (methodSelect) methodSelect.addEventListener('change', applySplit);
+            if (priceInput) priceInput.addEventListener('input', applySplit);
+            // Подставить цену при загрузке, если пусто или 0
+            setPriceFromProduct();
+            applySplit();
+        })();
+    </script>
+    {% endif %}
 {% endblock %}

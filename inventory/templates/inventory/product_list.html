@@ -21,6 +21,7 @@
                     <th>Цена продажи</th>
                     <th>Остаток</th>
                     <th>Фото</th>
+                    <th></th>
                 </tr>
                 </thead>
                 <tbody>
@@ -39,10 +40,16 @@
                                 <span class="muted">—</span>
                             {% endif %}
                         </td>
+                        <td class="text-end">
+                            <form method="post" action="{% url 'inventory:product_delete' product.pk %}" onsubmit="return confirm('Удалить товар?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                            </form>
+                        </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">Товаров пока нет</td>
+                        <td colspan="8" class="text-center text-muted py-4">Товаров пока нет</td>
                     </tr>
                 {% endfor %}
                 </tbody>

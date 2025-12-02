@@ -1,0 +1,54 @@
+{% extends "inventory/base.html" %}
+{% block title %}Заказы{% endblock %}
+{% block page_title %}Заказы{% endblock %}
+{% block header_actions %}
+{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-modern align-middle">
+                <thead>
+                <tr>
+                    <th class="text-muted">#</th>
+                    <th>Дата</th>
+                    <th>Склад</th>
+                    <th>Товар</th>
+                    <th>Кол-во</th>
+                    <th>Цена</th>
+                    <th>Сумма</th>
+                    <th>Оплата</th>
+                    <th>Продал</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for order in orders %}
+                    <tr>
+                        <td class="text-muted">{{ forloop.counter }}</td>
+                        <td>{{ order.created_at|date:"Y-m-d H:i" }}</td>
+                        <td>{{ order.warehouse }}</td>
+                        <td>{{ order.product }}</td>
+                        <td class="fw-semibold">{{ order.quantity }}</td>
+                        <td>{{ order.price }}</td>
+                        <td class="fw-semibold">{{ order.total }}</td>
+                        <td>
+                            {{ order.get_payment_method_display }}
+                            {% if order.payment_method == 'mixed' %}
+                                <div class="text-muted small">Нал: {{ order.cash_amount }}, Halyk: {{ order.halyk_amount }}, Kaspi: {{ order.kaspi_amount }}</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if order.seller %}{{ order.seller.username }}{% else %}—{% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">Заказов пока нет</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+ </div>
+{% endblock %}

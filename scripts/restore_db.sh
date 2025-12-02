@@ -1,9 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# Восстанавливает базу из gzip-дампа, созданного backup_db.sh
-# Использует переменные окружения: MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, MYSQL_HOST, MYSQL_PORT
-
 if [ $# -lt 1 ]; then
   echo "Использование: $0 <путь_к_дампу.sql.gz>" >&2
   exit 1

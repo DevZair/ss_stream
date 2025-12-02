@@ -20,6 +20,8 @@ def accessible_sections(request) -> dict[str, set[str]]:
                 "incoming",
                 "movements",
                 "sales",
+                "orders",
+                "logs",
             }
         else:
             employee = getattr(user, "employee_profile", None)

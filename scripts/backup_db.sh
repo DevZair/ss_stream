@@ -1,9 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# Создает сжатую резервную копию базы MySQL. 
-# Использует переменные окружения: MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, MYSQL_HOST, MYSQL_PORT, BACKUP_DIR
-
 MYSQL_DATABASE=${MYSQL_DATABASE:-warehouse_system}
 MYSQL_USER=${MYSQL_USER:-root}
 MYSQL_PASSWORD=${MYSQL_PASSWORD:-}

@@ -226,6 +226,14 @@ class EmployeeUpdateForm(StyledFormMixin, forms.ModelForm):
 
 
 class IncomingForm(StyledFormMixin, forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+        if user and hasattr(user, "employee_profile") and not user.is_superuser:
+            wh = user.employee_profile.warehouse
+            self.fields["warehouse"].queryset = Warehouse.objects.filter(pk=wh.pk)
+            self.fields["warehouse"].initial = wh
+
     class Meta:
         model = Incoming
         fields = ("product", "warehouse", "quantity", "date")
@@ -233,6 +241,14 @@ class IncomingForm(StyledFormMixin, forms.ModelForm):
 
 
 class MovementForm(StyledFormMixin, forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+        if user and hasattr(user, "employee_profile") and not user.is_superuser:
+            wh = user.employee_profile.warehouse
+            self.fields["from_warehouse"].queryset = Warehouse.objects.filter(pk=wh.pk)
+            self.fields["from_warehouse"].initial = wh
+
     class Meta:
         model = Movement
         fields = (
@@ -246,16 +262,84 @@ class MovementForm(StyledFormMixin, forms.ModelForm):
 
 
 class SaleForm(StyledFormMixin, forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+        if user and hasattr(user, "employee_profile") and not user.is_superuser:
+            wh = user.employee_profile.warehouse
+            self.fields["warehouse"].queryset = Warehouse.objects.filter(pk=wh.pk)
+            self.fields["warehouse"].initial = wh
+        self.fields["price"].widget.attrs.setdefault("placeholder", "Цена продажи")
+        for amount_field in ("cash_amount", "halyk_amount", "kaspi_amount"):
+            if amount_field in self.fields:
+                self.fields[amount_field].widget.attrs.setdefault("step", "0.01")
+                self.fields[amount_field].widget.attrs.setdefault("placeholder", "0")
+        # Прячем поля разбиения, если выбран не смешанный метод (JS откроет при смешанной)
+        self.fields["cash_amount"].widget.attrs.setdefault("class", "form-control split-field")
+        self.fields["halyk_amount"].widget.attrs.setdefault("class", "form-control split-field")
+        self.fields["kaspi_amount"].widget.attrs.setdefault("class", "form-control split-field")
+
     class Meta:
         model = Sale
-        fields = ("product", "warehouse", "quantity", "price", "payment_method")
+        fields = (
+            "product",
+            "warehouse",
+            "quantity",
+            "price",
+            "payment_method",
+            "cash_amount",
+            "halyk_amount",
+            "kaspi_amount",
+            "payment_details",
+        )
         widgets = {
             "price": forms.NumberInput(attrs={"step": "0.01"}),
         }
         labels = {
             "price": "Цена продажи",
             "payment_method": "Метод оплаты",
+            "cash_amount": "Наличные",
+            "halyk_amount": "Halyk/Карта",
+            "kaspi_amount": "Kaspi",
+            "payment_details": "Комментарий по оплате",
         }
+
+    def clean(self):
+        cleaned = super().clean()
+        product = cleaned.get("product")
+        quantity = cleaned.get("quantity") or 0
+        price = cleaned.get("price") or (product.selling_price if product else None)
+        if price is None:
+            return cleaned
+        total = (price or 0) * quantity
+        cleaned["price"] = price
+        payment_method = cleaned.get("payment_method")
+        cash = cleaned.get("cash_amount") or 0
+        halyk = cleaned.get("halyk_amount") or 0
+        kaspi = cleaned.get("kaspi_amount") or 0
+
+        if payment_method != "mixed":
+            cash = halyk = kaspi = 0
+            if payment_method == "cash":
+                cash = total
+            elif payment_method == "halyk":
+                halyk = total
+            elif payment_method == "kaspi":
+                kaspi = total
+        else:
+            paid_sum = cash + halyk + kaspi
+            if paid_sum <= 0:
+                cash = total
+                halyk = 0
+                kaspi = 0
+            elif paid_sum != total:
+                # нормализуем: добавляем разницу в наличные
+                cash = cash + (total - paid_sum)
+
+        cleaned["cash_amount"] = cash
+        cleaned["halyk_amount"] = halyk
+        cleaned["kaspi_amount"] = kaspi
+        return cleaned
 
 
 class SalesReportFilterForm(StyledFormMixin, forms.Form):
