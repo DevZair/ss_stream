@@ -231,9 +231,11 @@ class Movement(models.Model):
 
     def save(self, *args, **kwargs):
         self.clean()
-        if self.pk:
-            raise ValidationError("Редактирование перемещений запрещено.")
         with transaction.atomic():
+            if self.pk:
+                prev = Movement.objects.select_for_update().get(pk=self.pk)
+                adjust_stock(prev.from_warehouse, prev.product, prev.quantity)
+                adjust_stock(prev.to_warehouse, prev.product, -prev.quantity)
             super().save(*args, **kwargs)
             adjust_stock(self.from_warehouse, self.product, -self.quantity)
             adjust_stock(self.to_warehouse, self.product, self.quantity)

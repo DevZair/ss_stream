@@ -18,12 +18,18 @@
   - фиксирует приход и обновляет `Stock`
 - `Movement` (id, product!, from_warehouse!, to_warehouse!, quantity, date)
   - перемещение между складами, валидация на разные склады
-- `Sale` (id, product!, warehouse!, quantity, price, total, payment_method, created_at)
-  - уменьшает `Stock`, создает `SalesReport`
+- `Sale` (id, product!, warehouse!, quantity, price, total, payment_method, cash_amount, halyk_amount, kaspi_amount, payment_details, seller?, created_at)
+  - уменьшает `Stock`, создает `SalesReport`, фиксирует способ оплаты и продавца
 - `SalesReport` (id, sale!, report_type, status, notes, created_at)
   - фиксирует факт продажи и тип отчета
+- `AccessSection` (id, slug*, name)
+  - справочник прав доступа внутри системы (sales, orders, reports, warehouses и т.д.)
+- `Employee.access_sections` (M2M через `inventory_employee_access_sections`)
+  - определяет, какие разделы доступны сотруднику
+- `ActivityLog` (id, user?, employee?, action, entity_type, entity_id, details, created_at)
+  - аудит действий пользователя/сотрудника (продажи, приходы, перемещения)
 
 Ключи и уникальность:
 - PK на каждой таблице (BigAutoField).
 - `Warehouse.code` и `Warehouse.name` уникальны; `Category.name` уникален; `Product` уникален в паре (name, category); `Stock` уникален по (warehouse, product).
-- Связи: 1:1 (`Warehouse`–`WarehouseProfile`), 1:N (склад → сотрудники, остатки, приходы, перемещения, продажи), M:N (склады ↔ товары через `Stock`).
+- Связи: 1:1 (`Warehouse`–`WarehouseProfile`), 1:N (склад → сотрудники, остатки, приходы, перемещения, продажи), M:N (склады ↔ товары через `Stock`; сотрудники ↔ доступы через `AccessSection`).

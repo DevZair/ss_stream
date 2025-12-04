@@ -34,7 +34,7 @@ from .forms import (
     SalesReportFilterForm,
     WarehouseForm,
 )
-from .models import Category, Employee, Product, Sale, Stock, Warehouse
+from .models import Category, Employee, Product, Sale, Stock, Warehouse, Incoming, Movement
 from .models import log_activity
 
 
@@ -332,6 +332,14 @@ def incoming_create(request):
     )
 
 
+def incoming_list(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
+    _require_access(request.user, "incoming")
+    records = Incoming.objects.select_related("product", "warehouse").order_by("-date", "-id")
+    return render(request, "inventory/incoming_list.html", {"records": records})
+
+
 def incoming_edit(request, pk):
     if not request.user.is_authenticated:
         return redirect("inventory:login")
@@ -372,6 +380,42 @@ def movement_create(request):
         success_url=reverse("inventory:stock_list"),
         title="Перемещение товара",
         success_message="Перемещение сохранено.",
+    )
+
+
+def movement_list(request):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
+    _require_access(request.user, "movements")
+    records = (
+        Movement.objects.select_related("product", "from_warehouse", "to_warehouse")
+        .order_by("-date", "-id")
+    )
+    return render(request, "inventory/movement_list.html", {"records": records})
+
+
+def movement_edit(request, pk):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
+    _require_access(request.user, "movements")
+    movement = get_object_or_404(Movement, pk=pk)
+    if request.method == "POST":
+        form = MovementForm(request.POST, instance=movement, user=request.user)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    form.save()
+            except ValidationError as exc:
+                form.add_error(None, exc.messages[0])
+            else:
+                messages.success(request, "Перемещение обновлено.")
+                return redirect("inventory:movement_list")
+    else:
+        form = MovementForm(instance=movement, user=request.user)
+    return render(
+        request,
+        "inventory/operations_movement.html",
+        {"form": form, "title": "Изменить перемещение", "submit_label": "Сохранить"},
     )
 
 

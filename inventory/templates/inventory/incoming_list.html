@@ -1,0 +1,44 @@
+{% extends "inventory/base.html" %}
+{% block title %}Приходы{% endblock %}
+{% block page_title %}Приходы{% endblock %}
+{% block header_actions %}
+    <a href="{% url 'inventory:incoming_add' %}" class="btn btn-primary btn-icon"><i class="bi bi-plus-lg"></i> Новый приход</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-modern align-middle">
+                <thead>
+                <tr>
+                    <th class="text-muted">#</th>
+                    <th>Дата</th>
+                    <th>Товар</th>
+                    <th>Склад</th>
+                    <th>Кол-во</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for item in records %}
+                    <tr>
+                        <td class="text-muted">{{ forloop.counter }}</td>
+                        <td>{{ item.date }}</td>
+                        <td>{{ item.product }}</td>
+                        <td>{{ item.warehouse }}</td>
+                        <td class="fw-semibold">{{ item.quantity }}</td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-primary" href="{% url 'inventory:incoming_edit' item.pk %}">Изменить</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">Приходов нет</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+ </div>
+{% endblock %}

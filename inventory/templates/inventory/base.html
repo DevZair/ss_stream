@@ -79,9 +79,11 @@
             <div class="text-uppercase muted small fw-bold px-1">Операции</div>
             {% if request.user.is_superuser or 'incoming' in allowed %}
             <a class="btn btn-outline-light" href="{% url 'inventory:incoming_add' %}">Приход</a>
+            <a class="btn btn-outline-light mt-2" href="{% url 'inventory:incoming_list' %}">История приходов</a>
             {% endif %}
             {% if request.user.is_superuser or 'movements' in allowed %}
             <a class="btn btn-outline-light" href="{% url 'inventory:movement_add' %}">Перемещение</a>
+            <a class="btn btn-outline-light mt-2" href="{% url 'inventory:movement_list' %}">История перемещений</a>
             {% endif %}
             {% if not request.user.is_superuser and 'incoming' not in allowed and 'movements' not in allowed %}
             <div class="text-muted small px-1">Нет доступа</div>
