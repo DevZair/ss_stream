@@ -35,7 +35,7 @@ from .forms import (
     WarehouseForm,
 )
 from .models import Category, Employee, Product, Sale, Stock, Warehouse, Incoming, Movement
-from .models import log_activity
+from .models import adjust_stock, log_activity
 
 
 def product_list(request):
@@ -227,13 +227,6 @@ def pos_dashboard(request):
         .annotate(total_stock=Coalesce(Sum("stocks__quantity"), 0))
         .order_by("name")
     )
-    wh_stock = {}
-    if employee_wh:
-        wh_stock = dict(
-            Stock.objects.filter(warehouse=employee_wh)
-            .values_list("product_id")
-            .annotate(qty=Sum("quantity"))
-        )
 
     keypad_rows = [
         ["1", "2", "3"],
@@ -241,15 +234,6 @@ def pos_dashboard(request):
         ["7", "8", "9"],
         ["000", "0", "<-"]
     ]
-
-    price_map = {str(p.id): str(p.selling_price) for p in products}
-    stock_map = {
-        str(p.id): {
-            "local": wh_stock.get(p.id, 0) if isinstance(wh_stock, dict) else 0,
-            "total": p.total_stock,
-        }
-        for p in products
-    }
 
     if request.method == "POST":
         form = SaleForm(request.POST, user=request.user)
@@ -279,6 +263,30 @@ def pos_dashboard(request):
     else:
         form = SaleForm(user=request.user)
 
+    available_wh_ids = list(
+        form.fields["warehouse"].queryset.values_list("id", flat=True)
+    )
+    stocks_qs = Stock.objects.filter(warehouse_id__in=available_wh_ids)
+
+    stock_map = {
+        str(p.id): {
+            "total": p.total_stock,
+            "warehouses": {},
+        }
+        for p in products
+    }
+    for entry in stocks_qs.values("product_id", "warehouse_id").annotate(qty=Sum("quantity")):
+        pid = str(entry["product_id"])
+        wid = str(entry["warehouse_id"])
+        stock_map.setdefault(pid, {"total": 0, "warehouses": {}})
+        stock_map[pid]["warehouses"][wid] = entry["qty"] or 0
+
+    warehouse_stock_counts = {str(wid): 0 for wid in available_wh_ids}
+    for wid, cnt in stocks_qs.values_list("warehouse_id").annotate(cnt=Count("id")):
+        warehouse_stock_counts[str(wid)] = cnt or 0
+
+    price_map = {str(p.id): str(p.selling_price) for p in products}
+
     return render(
         request,
         "inventory/pos.html",
@@ -286,7 +294,7 @@ def pos_dashboard(request):
             "form": form,
             "products": products,
             "warehouse": employee_wh,
-            "warehouse_stock": wh_stock,
+            "stock_positions": warehouse_stock_counts,
             "keypad_rows": keypad_rows,
             "price_map": price_map,
             "stock_map": stock_map,
@@ -367,6 +375,28 @@ def incoming_edit(request, pk):
             "submit_label": "Сохранить",
         },
     )
+
+
+def incoming_delete(request, pk):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
+    _require_access(request.user, "incoming")
+    incoming = get_object_or_404(Incoming, pk=pk)
+    employee_wh = _user_warehouse(request.user)
+    if employee_wh and not request.user.is_superuser and incoming.warehouse_id != employee_wh.id:
+        messages.error(request, "Нет доступа к этому приходу.")
+        return redirect("inventory:incoming_list")
+
+    if request.method == "POST":
+        try:
+            with transaction.atomic():
+                adjust_stock(incoming.warehouse, incoming.product, -incoming.quantity)
+                incoming.delete()
+        except ValidationError as exc:
+            messages.error(request, exc.messages[0])
+        else:
+            messages.success(request, "Приход удален.")
+    return redirect("inventory:incoming_list")
 
 
 def movement_create(request):

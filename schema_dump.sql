@@ -1,275 +1,167 @@
-# This is an auto-generated Django model module.
-# You'll have to do the following manually to clean this up:
-#   * Rearrange models' order
-#   * Make sure each model has one field with primary_key=True
-#   * Make sure each ForeignKey and OneToOneField has `on_delete` set to the desired behavior
-#   * Remove `managed = False` lines if you wish to allow Django to create, modify, and delete the table
-# Feel free to rename the models, but don't rename db_table values or field names.
-from django.db import models
-
-
-class AuthGroup(models.Model):
-    name = models.CharField(unique=True, max_length=150)
-
-    class Meta:
-        managed = False
-        db_table = 'auth_group'
-
-
-class AuthGroupPermissions(models.Model):
-    group = models.ForeignKey(AuthGroup, models.DO_NOTHING)
-    permission = models.ForeignKey('AuthPermission', models.DO_NOTHING)
-
-    class Meta:
-        managed = False
-        db_table = 'auth_group_permissions'
-        unique_together = (('group', 'permission'),)
-
-
-class AuthPermission(models.Model):
-    content_type = models.ForeignKey('DjangoContentType', models.DO_NOTHING)
-    codename = models.CharField(max_length=100)
-    name = models.CharField(max_length=255)
-
-    class Meta:
-        managed = False
-        db_table = 'auth_permission'
-        unique_together = (('content_type', 'codename'),)
-
-
-class AuthUser(models.Model):
-    password = models.CharField(max_length=128)
-    last_login = models.DateTimeField(blank=True, null=True)
-    is_superuser = models.BooleanField()
-    username = models.CharField(unique=True, max_length=150)
-    last_name = models.CharField(max_length=150)
-    email = models.CharField(max_length=254)
-    is_staff = models.BooleanField()
-    is_active = models.BooleanField()
-    date_joined = models.DateTimeField()
-    first_name = models.CharField(max_length=150)
-
-    class Meta:
-        managed = False
-        db_table = 'auth_user'
-
-
-class AuthUserGroups(models.Model):
-    user = models.ForeignKey(AuthUser, models.DO_NOTHING)
-    group = models.ForeignKey(AuthGroup, models.DO_NOTHING)
-
-    class Meta:
-        managed = False
-        db_table = 'auth_user_groups'
-        unique_together = (('user', 'group'),)
-
-
-class AuthUserUserPermissions(models.Model):
-    user = models.ForeignKey(AuthUser, models.DO_NOTHING)
-    permission = models.ForeignKey(AuthPermission, models.DO_NOTHING)
-
-    class Meta:
-        managed = False
-        db_table = 'auth_user_user_permissions'
-        unique_together = (('user', 'permission'),)
-
-
-class DjangoAdminLog(models.Model):
-    object_id = models.TextField(blank=True, null=True)
-    object_repr = models.CharField(max_length=200)
-    action_flag = models.PositiveSmallIntegerField()
-    change_message = models.TextField()
-    content_type = models.ForeignKey('DjangoContentType', models.DO_NOTHING, blank=True, null=True)
-    user = models.ForeignKey(AuthUser, models.DO_NOTHING)
-    action_time = models.DateTimeField()
-
-    class Meta:
-        managed = False
-        db_table = 'django_admin_log'
-
-
-class DjangoContentType(models.Model):
-    app_label = models.CharField(max_length=100)
-    model = models.CharField(max_length=100)
-
-    class Meta:
-        managed = False
-        db_table = 'django_content_type'
-        unique_together = (('app_label', 'model'),)
-
-
-class DjangoMigrations(models.Model):
-    app = models.CharField(max_length=255)
-    name = models.CharField(max_length=255)
-    applied = models.DateTimeField()
-
-    class Meta:
-        managed = False
-        db_table = 'django_migrations'
-
-
-class DjangoSession(models.Model):
-    session_key = models.CharField(primary_key=True, max_length=40)
-    session_data = models.TextField()
-    expire_date = models.DateTimeField()
-
-    class Meta:
-        managed = False
-        db_table = 'django_session'
-
-
-class InventoryAccesssection(models.Model):
-    slug = models.CharField(unique=True, max_length=50)
-    name = models.CharField(max_length=100)
-
-    class Meta:
-        managed = False
-        db_table = 'inventory_accesssection'
-
-
-class InventoryActivitylog(models.Model):
-    action = models.CharField(max_length=255)
-    entity_type = models.CharField(max_length=50)
-    entity_id = models.PositiveIntegerField(blank=True, null=True)
-    details = models.TextField()
-    created_at = models.DateTimeField()
-    employee = models.ForeignKey('InventoryEmployee', models.DO_NOTHING, blank=True, null=True)
-    user = models.ForeignKey(AuthUser, models.DO_NOTHING, blank=True, null=True)
-
-    class Meta:
-        managed = False
-        db_table = 'inventory_activitylog'
-
-
-class InventoryCategory(models.Model):
-    name = models.CharField(unique=True, max_length=150)
-    created_at = models.DateTimeField()
-    description = models.TextField()
-    is_active = models.BooleanField()
-
-    class Meta:
-        managed = False
-        db_table = 'inventory_category'
-
-
-class InventoryEmployee(models.Model):
-    full_name = models.CharField(max_length=255)
-    warehouse = models.ForeignKey('InventoryWarehouse', models.DO_NOTHING)
-    user = models.OneToOneField(AuthUser, models.DO_NOTHING, blank=True, null=True)
-    status = models.CharField(max_length=20)
-    position = models.CharField(max_length=50)
-
-    class Meta:
-        managed = False
-        db_table = 'inventory_employee'
-
-
-class InventoryEmployeeAccessSections(models.Model):
-    employee = models.ForeignKey(InventoryEmployee, models.DO_NOTHING)
-    accesssection = models.ForeignKey(InventoryAccesssection, models.DO_NOTHING)
-
-    class Meta:
-        managed = False
-        db_table = 'inventory_employee_access_sections'
-        unique_together = (('employee', 'accesssection'),)
-
-
-class InventoryIncoming(models.Model):
-    quantity = models.PositiveIntegerField()
-    product = models.ForeignKey('InventoryProduct', models.DO_NOTHING)
-    warehouse = models.ForeignKey('InventoryWarehouse', models.DO_NOTHING)
-    date = models.DateField()
-
-    class Meta:
-        managed = False
-        db_table = 'inventory_incoming'
-
-
-class InventoryMovement(models.Model):
-    quantity = models.PositiveIntegerField()
-    from_warehouse = models.ForeignKey('InventoryWarehouse', models.DO_NOTHING)
-    product = models.ForeignKey('InventoryProduct', models.DO_NOTHING)
-    to_warehouse = models.ForeignKey('InventoryWarehouse', models.DO_NOTHING, related_name='inventorymovement_to_warehouse_set')
-    date = models.DateField()
-
-    class Meta:
-        managed = False
-        db_table = 'inventory_movement'
-
-
-class InventoryProduct(models.Model):
-    name = models.CharField(max_length=255)
-    purchase_price = models.DecimalField(max_digits=10, decimal_places=5)  # max_digits and decimal_places have been guessed, as this database handles decimal fields as float
-    selling_price = models.DecimalField(max_digits=10, decimal_places=5)  # max_digits and decimal_places have been guessed, as this database handles decimal fields as float
-    photo = models.CharField(max_length=100, blank=True, null=True)
-    category = models.ForeignKey(InventoryCategory, models.DO_NOTHING)
-
-    class Meta:
-        managed = False
-        db_table = 'inventory_product'
-        unique_together = (('name', 'category'),)
-
-
-class InventorySale(models.Model):
-    quantity = models.PositiveIntegerField()
-    price = models.DecimalField(max_digits=10, decimal_places=5)  # max_digits and decimal_places have been guessed, as this database handles decimal fields as float
-    total = models.DecimalField(max_digits=10, decimal_places=5)  # max_digits and decimal_places have been guessed, as this database handles decimal fields as float
-    payment_method = models.CharField(max_length=10)
-    created_at = models.DateTimeField()
-    product = models.ForeignKey(InventoryProduct, models.DO_NOTHING)
-    warehouse = models.ForeignKey('InventoryWarehouse', models.DO_NOTHING)
-    payment_details = models.CharField(max_length=255)
-    cash_amount = models.DecimalField(max_digits=10, decimal_places=5)  # max_digits and decimal_places have been guessed, as this database handles decimal fields as float
-    halyk_amount = models.DecimalField(max_digits=10, decimal_places=5)  # max_digits and decimal_places have been guessed, as this database handles decimal fields as float
-    kaspi_amount = models.DecimalField(max_digits=10, decimal_places=5)  # max_digits and decimal_places have been guessed, as this database handles decimal fields as float
-    seller = models.ForeignKey(AuthUser, models.DO_NOTHING, blank=True, null=True)
-
-    class Meta:
-        managed = False
-        db_table = 'inventory_sale'
-
-
-class InventorySalesreport(models.Model):
-    created_at = models.DateTimeField()
-    sale = models.ForeignKey(InventorySale, models.DO_NOTHING)
-    notes = models.TextField()
-    report_type = models.CharField(max_length=20)
-    status = models.CharField(max_length=20)
-
-    class Meta:
-        managed = False
-        db_table = 'inventory_salesreport'
-
-
-class InventoryStock(models.Model):
-    quantity = models.PositiveIntegerField()
-    product = models.ForeignKey(InventoryProduct, models.DO_NOTHING)
-    warehouse = models.ForeignKey('InventoryWarehouse', models.DO_NOTHING)
-
-    class Meta:
-        managed = False
-        db_table = 'inventory_stock'
-        unique_together = (('warehouse', 'product'),)
-
-
-class InventoryWarehouse(models.Model):
-    name = models.CharField(unique=True, max_length=150)
-    location = models.CharField(max_length=255)
-    code = models.CharField(unique=True, max_length=20)
-    created_at = models.DateTimeField()
-
-    class Meta:
-        managed = False
-        db_table = 'inventory_warehouse'
-
-
-class InventoryWarehouseprofile(models.Model):
-    manager_name = models.CharField(max_length=255)
-    contact_phone = models.CharField(max_length=50)
-    capacity = models.PositiveIntegerField()
-    temperature_controlled = models.BooleanField()
-    warehouse = models.OneToOneField(InventoryWarehouse, models.DO_NOTHING)
-
-    class Meta:
-        managed = False
-        db_table = 'inventory_warehouseprofile'
+-- ss_stream domain schema (Django system tables are created via migrations)
+-- Target DB: MySQL 8+ / InnoDB / utf8mb4
+
+SET NAMES utf8mb4;
+SET time_zone = "+00:00";
+
+-- Справочники
+CREATE TABLE inventory_category (
+    id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    name          VARCHAR(150)    NOT NULL UNIQUE,
+    description   TEXT            NOT NULL DEFAULT '',
+    is_active     BOOLEAN         NOT NULL DEFAULT TRUE,
+    created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE inventory_warehouse (
+    id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    code       VARCHAR(20)     NOT NULL UNIQUE,
+    name       VARCHAR(150)    NOT NULL UNIQUE,
+    location   VARCHAR(255)    NOT NULL,
+    created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE inventory_warehouseprofile (
+    id                     BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    warehouse_id           BIGINT UNSIGNED NOT NULL UNIQUE,
+    manager_name           VARCHAR(255)    NOT NULL DEFAULT '',
+    contact_phone          VARCHAR(50)     NOT NULL DEFAULT '',
+    capacity               INT UNSIGNED    NOT NULL DEFAULT 0,
+    temperature_controlled BOOLEAN         NOT NULL DEFAULT FALSE,
+    CONSTRAINT fk_wprofile_warehouse FOREIGN KEY (warehouse_id)
+        REFERENCES inventory_warehouse(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE inventory_accesssection (
+    id   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    slug VARCHAR(50)     NOT NULL UNIQUE,
+    name VARCHAR(100)    NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Пользователи/сотрудники (опирается на auth_user из Django)
+CREATE TABLE inventory_employee (
+    id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id     BIGINT UNSIGNED NULL,
+    full_name   VARCHAR(255)    NOT NULL,
+    position    VARCHAR(50)     NOT NULL,
+    status      VARCHAR(20)     NOT NULL,
+    warehouse_id BIGINT UNSIGNED NOT NULL,
+    CONSTRAINT fk_employee_user FOREIGN KEY (user_id)
+        REFERENCES auth_user(id) ON DELETE SET NULL,
+    CONSTRAINT fk_employee_warehouse FOREIGN KEY (warehouse_id)
+        REFERENCES inventory_warehouse(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE inventory_employee_access_sections (
+    id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    employee_id    BIGINT UNSIGNED NOT NULL,
+    accesssection_id BIGINT UNSIGNED NOT NULL,
+    CONSTRAINT uq_employee_access UNIQUE (employee_id, accesssection_id),
+    CONSTRAINT fk_employee_access_employee FOREIGN KEY (employee_id)
+        REFERENCES inventory_employee(id) ON DELETE CASCADE,
+    CONSTRAINT fk_employee_access_section FOREIGN KEY (accesssection_id)
+        REFERENCES inventory_accesssection(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Товары и остатки
+CREATE TABLE inventory_product (
+    id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    name           VARCHAR(255)    NOT NULL,
+    category_id    BIGINT UNSIGNED NOT NULL,
+    purchase_price DECIMAL(12,2)   NOT NULL,
+    selling_price  DECIMAL(12,2)   NOT NULL,
+    photo          VARCHAR(100)    NULL,
+    CONSTRAINT uq_product_name_category UNIQUE (name, category_id),
+    CONSTRAINT fk_product_category FOREIGN KEY (category_id)
+        REFERENCES inventory_category(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE inventory_stock (
+    id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    warehouse_id BIGINT UNSIGNED NOT NULL,
+    product_id   BIGINT UNSIGNED NOT NULL,
+    quantity     INT UNSIGNED    NOT NULL DEFAULT 0,
+    CONSTRAINT uq_stock_wh_product UNIQUE (warehouse_id, product_id),
+    CONSTRAINT fk_stock_warehouse FOREIGN KEY (warehouse_id)
+        REFERENCES inventory_warehouse(id) ON DELETE CASCADE,
+    CONSTRAINT fk_stock_product FOREIGN KEY (product_id)
+        REFERENCES inventory_product(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Операции: приход/перемещение/продажи
+CREATE TABLE inventory_incoming (
+    id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    product_id   BIGINT UNSIGNED NOT NULL,
+    warehouse_id BIGINT UNSIGNED NOT NULL,
+    quantity     INT UNSIGNED    NOT NULL,
+    date         DATE            NOT NULL DEFAULT CURRENT_DATE,
+    CONSTRAINT fk_incoming_product FOREIGN KEY (product_id)
+        REFERENCES inventory_product(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_incoming_warehouse FOREIGN KEY (warehouse_id)
+        REFERENCES inventory_warehouse(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE inventory_movement (
+    id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    product_id      BIGINT UNSIGNED NOT NULL,
+    from_warehouse_id BIGINT UNSIGNED NOT NULL,
+    to_warehouse_id BIGINT UNSIGNED NOT NULL,
+    quantity        INT UNSIGNED    NOT NULL,
+    date            DATE            NOT NULL DEFAULT CURRENT_DATE,
+    CONSTRAINT fk_movement_product FOREIGN KEY (product_id)
+        REFERENCES inventory_product(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_movement_from FOREIGN KEY (from_warehouse_id)
+        REFERENCES inventory_warehouse(id) ON DELETE CASCADE,
+    CONSTRAINT fk_movement_to FOREIGN KEY (to_warehouse_id)
+        REFERENCES inventory_warehouse(id) ON DELETE CASCADE,
+    CONSTRAINT chk_movement_diff CHECK (from_warehouse_id <> to_warehouse_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE inventory_sale (
+    id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    product_id      BIGINT UNSIGNED NOT NULL,
+    warehouse_id    BIGINT UNSIGNED NOT NULL,
+    quantity        INT UNSIGNED    NOT NULL,
+    price           DECIMAL(12,2)   NOT NULL DEFAULT 0.00,
+    total           DECIMAL(12,2)   NOT NULL DEFAULT 0.00,
+    payment_method  VARCHAR(10)     NOT NULL,
+    cash_amount     DECIMAL(12,2)   NOT NULL DEFAULT 0.00,
+    halyk_amount    DECIMAL(12,2)   NOT NULL DEFAULT 0.00,
+    kaspi_amount    DECIMAL(12,2)   NOT NULL DEFAULT 0.00,
+    payment_details VARCHAR(255)    NOT NULL DEFAULT '',
+    seller_id       BIGINT UNSIGNED NULL,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_sale_product FOREIGN KEY (product_id)
+        REFERENCES inventory_product(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_sale_warehouse FOREIGN KEY (warehouse_id)
+        REFERENCES inventory_warehouse(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sale_seller FOREIGN KEY (seller_id)
+        REFERENCES auth_user(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE inventory_salesreport (
+    id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    sale_id      BIGINT UNSIGNED NOT NULL,
+    report_type  VARCHAR(20)     NOT NULL DEFAULT 'sale',
+    status       VARCHAR(20)     NOT NULL DEFAULT 'final',
+    notes        TEXT            NOT NULL DEFAULT '',
+    created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_salesreport_sale FOREIGN KEY (sale_id)
+        REFERENCES inventory_sale(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Аудит
+CREATE TABLE inventory_activitylog (
+    id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id      BIGINT UNSIGNED NULL,
+    employee_id  BIGINT UNSIGNED NULL,
+    action       VARCHAR(255)    NOT NULL,
+    entity_type  VARCHAR(50)     NOT NULL DEFAULT '',
+    entity_id    BIGINT UNSIGNED NULL,
+    details      TEXT            NOT NULL DEFAULT '',
+    created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_log_user FOREIGN KEY (user_id)
+        REFERENCES auth_user(id) ON DELETE SET NULL,
+    CONSTRAINT fk_log_employee FOREIGN KEY (employee_id)
+        REFERENCES inventory_employee(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

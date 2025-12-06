@@ -119,10 +119,10 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 JAZZMIN_SETTINGS = {
-    "site_title": "Warehouse System Admin",
-    "site_header": "Warehouse Manager",
+    "site_title": "ss_stream Admin",
+    "site_header": "ss_stream",
     "welcome_sign": "Управление складом",
-    "copyright": "Warehouse System",
+    "copyright": "ss_stream",
     "search_model": "inventory.Product",
     "show_sidebar": True,
     "order_with_respect_to": ["inventory", "auth", "inventory.Product"],

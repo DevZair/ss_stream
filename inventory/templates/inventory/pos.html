@@ -13,7 +13,7 @@
           {{ form.warehouse }}
         </div>
         <div class="col-md-8 text-end text-muted small">
-          Остатков: {{ warehouse_stock|length }} позиций
+          Остатков: <span id="stock-positions">—</span> позиций
         </div>
       </div>
 
@@ -87,11 +87,15 @@
 {% if price_map %}
 {{ price_map|json_script:"price-map" }}
 {{ stock_map|json_script:"stock-map" }}
+{{ stock_positions|json_script:"stock-positions-map" }}
 <script>
   (function() {
     const priceData = JSON.parse(document.getElementById('price-map').textContent || '{}');
     window.stockData = JSON.parse(document.getElementById('stock-map').textContent || '{}');
+    const positionsDataEl = document.getElementById('stock-positions-map');
+    const stockPositionsData = positionsDataEl ? JSON.parse(positionsDataEl.textContent || '{}') : {};
     const productSelect = document.getElementById('id_product');
+    const warehouseSelect = document.getElementById('id_warehouse');
     const priceInput = document.getElementById('id_price');
     const qtyInput = document.getElementById('id_quantity');
     const totalInput = document.getElementById('pos-total');
@@ -101,6 +105,7 @@
     const kaspiInput = document.getElementById('id_kaspi_amount');
     const stockLocalEl = document.getElementById('stock-local');
     const stockTotalEl = document.getElementById('stock-total');
+    const stockPositionsEl = document.getElementById('stock-positions');
 
     const parseVal = (el) => {
       const v = parseFloat(el && el.value);
@@ -124,18 +129,29 @@
     };
 
     const setPriceFromProduct = () => {
-      const productId = productSelect.value;
-      const suggested = priceData[productId];
-      if (suggested && (!priceInput.value || Number(priceInput.value) === 0)) {
+      const productId = productSelect ? productSelect.value : null;
+      const suggested = productId ? priceData[productId] : null;
+      if (suggested && priceInput && (!priceInput.value || Number(priceInput.value) === 0)) {
         priceInput.value = suggested;
       }
-      const stock = (window.stockData && window.stockData[productId]) || {};
-      if (stockLocalEl) stockLocalEl.textContent = stock.local ?? '0';
-      if (stockTotalEl) stockTotalEl.textContent = stock.total ?? '0';
+      const stock = (window.stockData && productId) ? window.stockData[productId] : {};
+      const warehouseId = warehouseSelect ? warehouseSelect.value : null;
+      let localStock = 0;
+      if (warehouseId && stock && stock.warehouses) {
+        localStock = stock.warehouses[warehouseId] ?? 0;
+      } else if (stock && typeof stock.local !== 'undefined') {
+        localStock = stock.local;
+      }
+      if (stockLocalEl) stockLocalEl.textContent = localStock;
+      if (stockTotalEl) stockTotalEl.textContent = stock ? (stock.total ?? '0') : '0';
+      if (stockPositionsEl) {
+        stockPositionsEl.textContent = warehouseId ? (stockPositionsData[warehouseId] ?? 0) : '0';
+      }
       setTotals();
     };
 
     if (productSelect) productSelect.addEventListener('change', setPriceFromProduct);
+    if (warehouseSelect) warehouseSelect.addEventListener('change', setPriceFromProduct);
     if (priceInput) priceInput.addEventListener('input', setTotals);
     if (qtyInput) qtyInput.addEventListener('input', setTotals);
     if (methodSelect) methodSelect.addEventListener('change', () => applySplit());

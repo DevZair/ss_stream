@@ -24,6 +24,7 @@ urlpatterns = [
     path("incoming/", views.incoming_list, name="incoming_list"),
     path("incoming/add/", views.incoming_create, name="incoming_add"),
     path("incoming/<int:pk>/edit/", views.incoming_edit, name="incoming_edit"),
+    path("incoming/<int:pk>/delete/", views.incoming_delete, name="incoming_delete"),
     path("movements/", views.movement_list, name="movement_list"),
     path("movements/add/", views.movement_create, name="movement_add"),
     path("movements/<int:pk>/edit/", views.movement_edit, name="movement_edit"),
