@@ -1,1 +1,1 @@
-web: gunicorn ss_stream.wsgi --log-file -
+web: gunicorn warehouse_system.wsgi --log-file -
