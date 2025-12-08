@@ -2,7 +2,11 @@
 {% block title %}Приходы{% endblock %}
 {% block page_title %}Приходы{% endblock %}
 {% block header_actions %}
+    {% with allowed=accessible_sections %}
+    {% if request.user.is_superuser or 'incoming' in allowed %}
     <a href="{% url 'inventory:incoming_add' %}" class="btn btn-primary btn-icon"><i class="bi bi-plus-lg"></i> Новый приход</a>
+    {% endif %}
+    {% endwith %}
 {% endblock %}
 {% block content %}
 <div class="card">

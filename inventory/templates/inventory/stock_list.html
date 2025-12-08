@@ -2,9 +2,17 @@
 {% block title %}Остатки{% endblock %}
 {% block page_title %}Остатки по складам{% endblock %}
 {% block header_actions %}
-    <a href="{% url 'inventory:incoming_add' %}" class="btn btn-primary btn-icon"><i class="bi bi-plus-lg"></i> Новый приход</a>
-    <a href="{% url 'inventory:movement_add' %}" class="btn btn-outline-secondary btn-icon"><i class="bi bi-arrow-left-right"></i> Перемещение</a>
-    <a href="{% url 'inventory:sale_add' %}" class="btn btn-warning btn-icon"><i class="bi bi-cash-coin"></i> Продажа</a>
+    {% with allowed=accessible_sections %}
+    {% if request.user.is_superuser or 'incoming' in allowed %}
+        <a href="{% url 'inventory:incoming_add' %}" class="btn btn-primary btn-icon"><i class="bi bi-plus-lg"></i> Новый приход</a>
+    {% endif %}
+    {% if request.user.is_superuser or 'movements' in allowed %}
+        <a href="{% url 'inventory:movement_add' %}" class="btn btn-outline-secondary btn-icon"><i class="bi bi-arrow-left-right"></i> Перемещение</a>
+    {% endif %}
+    {% if request.user.is_superuser or 'sales' in allowed %}
+        <a href="{% url 'inventory:sale_add' %}" class="btn btn-warning btn-icon"><i class="bi bi-cash-coin"></i> Продажа</a>
+    {% endif %}
+    {% endwith %}
 {% endblock %}
 {% block content %}
 <div class="card mb-3">
