@@ -1,9 +1,8 @@
-import pymysql
-pymysql.install_as_MySQLdb()
-
 from pathlib import Path
 import os
-
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
+load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -66,25 +65,32 @@ TEMPLATES = [
 WSGI_APPLICATION = 'warehouse_system.wsgi.application'
 
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('MYSQL_DATABASE') or os.environ.get('MYSQLDATABASE', 'warehouse_system'),
-        'USER': os.environ.get('MYSQL_USER') or os.environ.get('MYSQLUSER', 'root'),
-        'PASSWORD': os.environ.get('MYSQL_PASSWORD') or os.environ.get('MYSQLPASSWORD', ''),
-        'HOST': os.environ.get('MYSQL_HOST') or os.environ.get('MYSQLHOST', 'localhost'),
-        'PORT': os.environ.get('MYSQL_PORT') or os.environ.get('MYSQLPORT', '3306'),
-        'OPTIONS': {
-            'charset': 'utf8mb4',
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
-    }
-}
+def _require_env(key: str, default: str | None = None) -> str:
+    value = os.environ.get(key, default)
+    if not value:
+        raise ImproperlyConfigured(f"{key} is required for PostgreSQL configuration")
+    return value
 
-if os.environ.get("DJANGO_DB_ENGINE") == "sqlite":
-    DATABASES["default"] = {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+
+db_engine = os.environ.get("DJANGO_DB_ENGINE", "postgres").lower()
+
+if db_engine.startswith("sqlite"):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": _require_env("POSTGRES_DB"),
+            "USER": _require_env("POSTGRES_USER"),
+            "PASSWORD": _require_env("POSTGRES_PASSWORD"),
+            "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
+            "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        }
     }
 
 
