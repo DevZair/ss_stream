@@ -2,5 +2,160 @@
 {% block title %}{{ title }}{% endblock %}
 {% block page_title %}{{ title }}{% endblock %}
 {% block content %}
-    {% include "inventory/partials/_operation_form.html" %}
+    {% if formset %}
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-xl-9">
+            <div class="card shadow-sm p-4">
+                <form method="post" class="needs-validation" novalidate>
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        {% for field in batch_form %}
+                            <div class="col-md-6">
+                                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.help_text %}
+                                    <div class="form-text">{{ field.help_text }}</div>
+                                {% endif %}
+                                {% for error in field.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                    {% if batch_form.non_field_errors %}
+                        <div class="alert alert-danger mt-3 mb-0">
+                            {% for error in batch_form.non_field_errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <hr class="my-4">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div>
+                            <h5 class="mb-0">Товары в приходе</h5>
+                            <small class="text-muted">Добавьте одну или несколько позиций за один раз</small>
+                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" data-add-item>
+                            <i class="bi bi-plus-lg me-1"></i>
+                            Добавить товар
+                        </button>
+                    </div>
+
+                    {{ formset.management_form }}
+                    <div id="incoming-items">
+                        {% for item_form in formset %}
+                            <div class="border rounded-3 p-3 mb-3 bg-light" data-item>
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-7">
+                                        <label class="form-label" for="{{ item_form.product.id_for_label }}">Товар</label>
+                                        {{ item_form.product }}
+                                        {% for error in item_form.product.errors %}
+                                            <div class="text-danger small">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label" for="{{ item_form.quantity.id_for_label }}">Количество</label>
+                                        {{ item_form.quantity }}
+                                        {% for error in item_form.quantity.errors %}
+                                            <div class="text-danger small">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="col-md-2 text-md-end">
+                                        <button type="button" class="btn btn-outline-danger w-100" data-remove-item>
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                {{ item_form.DELETE.as_hidden }}
+                                {% if item_form.non_field_errors %}
+                                    <div class="alert alert-danger mt-3 mb-0">
+                                        {% for error in item_form.non_field_errors %}
+                                            <div>{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    {% if formset.non_form_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in formset.non_form_errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    <div class="d-flex justify-content-end mt-3">
+                        <button type="submit" class="btn btn-success">{{ submit_label|default:"Сохранить" }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <template id="incoming-item-template">
+        <div class="border rounded-3 p-3 mb-3 bg-light" data-item>
+            <div class="row g-3 align-items-end">
+                <div class="col-md-7">
+                    <label class="form-label" for="{{ formset.empty_form.product.id_for_label }}">Товар</label>
+                    {{ formset.empty_form.product }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="{{ formset.empty_form.quantity.id_for_label }}">Количество</label>
+                    {{ formset.empty_form.quantity }}
+                </div>
+                <div class="col-md-2 text-md-end">
+                    <button type="button" class="btn btn-outline-danger w-100" data-remove-item>
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+            {{ formset.empty_form.DELETE.as_hidden }}
+        </div>
+    </template>
+
+    <script>
+        (() => {
+            const container = document.getElementById("incoming-items");
+            const addBtn = document.querySelector("[data-add-item]");
+            const totalInput = document.getElementById("id_items-TOTAL_FORMS");
+            const template = document.getElementById("incoming-item-template");
+            if (!container || !addBtn || !totalInput || !template) return;
+
+            const addItem = () => {
+                const formIndex = parseInt(totalInput.value, 10) || 0;
+                const html = template.innerHTML.replace(/__prefix__/g, formIndex);
+                const wrapper = document.createElement("div");
+                wrapper.innerHTML = html.trim();
+                const newItem = wrapper.firstElementChild;
+                container.appendChild(newItem);
+                totalInput.value = formIndex + 1;
+            };
+
+            const markDeleted = (item) => {
+                const deleteField = item.querySelector('input[name$="-DELETE"]');
+                if (deleteField) {
+                    deleteField.checked = true;
+                }
+                item.classList.add("d-none");
+            };
+
+            addBtn.addEventListener("click", (event) => {
+                event.preventDefault();
+                addItem();
+            });
+
+            container.addEventListener("click", (event) => {
+                const btn = event.target.closest("[data-remove-item]");
+                if (!btn) return;
+                const item = btn.closest("[data-item]");
+                if (!item) return;
+                markDeleted(item);
+            });
+        })();
+    </script>
+    {% else %}
+        {% include "inventory/partials/_operation_form.html" %}
+    {% endif %}
 {% endblock %}

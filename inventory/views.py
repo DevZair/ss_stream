@@ -34,6 +34,8 @@ from .forms import (
     EmployeeForm,
     EmployeeUpdateForm,
     IncomingForm,
+    IncomingBatchForm,
+    IncomingItemFormSet,
     MovementForm,
     ProductForm,
     SalePaymentForm,
@@ -474,13 +476,57 @@ def incoming_create(request):
     if not request.user.is_authenticated:
         return redirect("inventory:login")
     _require_access(request.user, "incoming")
-    return _handle_stock_operation(
-        request=request,
-        form_class=IncomingForm,
-        template="inventory/operations_incoming.html",
-        success_url=reverse("inventory:stock_list"),
-        title="Приход товара",
-        success_message="Поступление сохранено.",
+    employee_wh = _user_warehouse(request.user)
+    if employee_wh is None and not request.user.is_superuser:
+        messages.error(request, "Нет склада, закрепленного за вашим аккаунтом.")
+        return redirect("inventory:product_list")
+
+    if request.method == "POST":
+        batch_form = IncomingBatchForm(request.POST, user=request.user)
+        items_formset = IncomingItemFormSet(request.POST, prefix="items")
+        if batch_form.is_valid() and items_formset.is_valid():
+            warehouse = batch_form.cleaned_data["warehouse"]
+            date = batch_form.cleaned_data["date"]
+            created_items = []
+            try:
+                with transaction.atomic():
+                    for form in items_formset:
+                        if form.cleaned_data.get("DELETE"):
+                            continue
+                        product = form.cleaned_data.get("product")
+                        quantity = form.cleaned_data.get("quantity") or 0
+                        if not product or quantity <= 0:
+                            continue
+                        incoming = Incoming.objects.create(
+                            product=product,
+                            warehouse=warehouse,
+                            quantity=quantity,
+                            date=date,
+                        )
+                        created_items.append(incoming)
+            except ValidationError as exc:
+                batch_form.add_error(None, exc.messages[0])
+            else:
+                if not created_items:
+                    batch_form.add_error(None, "Добавьте хотя бы один товар")
+                else:
+                    for item in created_items:
+                        _log_operation(request.user, item)
+                    messages.success(request, "Поступление сохранено.")
+                    return redirect(reverse("inventory:stock_list"))
+    else:
+        batch_form = IncomingBatchForm(user=request.user)
+        items_formset = IncomingItemFormSet(prefix="items")
+
+    return render(
+        request,
+        "inventory/operations_incoming.html",
+        {
+            "batch_form": batch_form,
+            "formset": items_formset,
+            "title": "Приход товара",
+            "submit_label": "Сохранить",
+        },
     )
 
 

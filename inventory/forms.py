@@ -3,6 +3,7 @@ from decimal import Decimal
 from django import forms
 from django.contrib.auth import get_user_model
 from django.forms import formset_factory
+from django.utils import timezone
 
 from .models import (
     AccessSection,
@@ -244,6 +245,51 @@ class IncomingForm(StyledFormMixin, forms.ModelForm):
         model = Incoming
         fields = ("product", "warehouse", "quantity", "date")
         widgets = {"date": forms.DateInput(attrs={"type": "date"})}
+
+
+class IncomingBatchForm(StyledFormMixin, forms.Form):
+    warehouse = forms.ModelChoiceField(
+        queryset=Warehouse.objects.none(),
+        label="Склад",
+    )
+    date = forms.DateField(
+        label="Дата",
+        widget=forms.DateInput(attrs={"type": "date"}),
+        initial=timezone.now,
+    )
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+        qs = Warehouse.objects.all()
+        if user and hasattr(user, "employee_profile") and not user.is_superuser:
+            wh = user.employee_profile.warehouse
+            qs = Warehouse.objects.filter(pk=wh.pk)
+            self.fields["warehouse"].initial = wh
+        self.fields["warehouse"].queryset = qs
+        if not self.is_bound and not self.initial.get("date"):
+            self.fields["date"].initial = timezone.now().date()
+
+
+class IncomingItemForm(StyledFormMixin, forms.Form):
+    product = forms.ModelChoiceField(
+        queryset=Product.objects.all(),
+        label="Товар",
+    )
+    quantity = forms.IntegerField(
+        min_value=1,
+        label="Количество",
+        widget=forms.NumberInput(attrs={"min": 1}),
+    )
+
+
+IncomingItemFormSet = formset_factory(
+    IncomingItemForm,
+    extra=1,
+    can_delete=True,
+    min_num=1,
+    validate_min=True,
+)
 
 
 class MovementForm(StyledFormMixin, forms.ModelForm):

@@ -1,5 +1,5 @@
 ## Запуск
-1. Установить зависимости и настроить БД (MySQL по умолчанию). Для SQLite локально: `DJANGO_DB_ENGINE=sqlite`.
+1. Установить зависимости и настроить БД (по умолчанию PostgreSQL через `DJANGO_DB_ENGINE=postgres`. Для SQLite локально: `DJANGO_DB_ENGINE=sqlite`).
 2. Применить миграции и создать суперпользователя/роли:
    ```bash
    ./scripts/run_migrations.sh
@@ -10,8 +10,10 @@
 
 ## Автоматизация и резервные копии
 - Миграции: `scripts/run_migrations.sh`.
-- Бэкап: `scripts/backup_db.sh` (mysqldump→gzip в `backups/`).
+- Бэкап: `scripts/backup_db.sh` (Postgres pg_dump→gzip или gzip SQLite в `backups/`).
 - Восстановление: `scripts/restore_db.sh backups/<dump>.sql.gz`.
+- Проверка восстановления: `scripts/backup_and_restore_check.sh` — делает бэкап и проверяет, что восстановление в тестовую БД/файл проходит (требуются `psql` для Postgres или `sqlite3` для SQLite).
+- Сброс демо-окружения: `scripts/demo_reset.sh` — восстанавливает из эталонного бэкапа `backups/demo_seed.sql.gz` (Postgres) или `backups/demo_seed.sqlite.gz` (SQLite). Создайте эталонный бэкап один раз командой `./scripts/backup_db.sh` и переименуйте файл.
 - Политика бэкапов: `docs/backup_policy.md`.
 
 ## Модель данных и связи
