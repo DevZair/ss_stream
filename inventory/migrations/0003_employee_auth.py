@@ -1,6 +1,51 @@
 # Generated manually: add AccessSection, employee auth fields
-from django.db import migrations, models
 from django.conf import settings
+from django.db import migrations, models, transaction
+
+
+def _table_exists(schema_editor, table_name: str) -> bool:
+    return table_name in schema_editor.connection.introspection.table_names()
+
+
+def _column_exists(schema_editor, table_name: str, column_name: str) -> bool:
+    with schema_editor.connection.cursor() as cursor:
+        columns = schema_editor.connection.introspection.get_table_description(cursor, table_name)
+    return any(col.name == column_name for col in columns)
+
+
+def _get_model(apps, model_label: str):
+    try:
+        return apps.get_model("inventory", model_label)
+    except LookupError:
+        from inventory import models as runtime_models
+        return getattr(runtime_models, model_label)
+
+
+def _create_model_if_missing(apps, schema_editor, model_label: str) -> None:
+    model = _get_model(apps, model_label)
+    table = model._meta.db_table
+    if _table_exists(schema_editor, table):
+        return
+    schema_editor.create_model(model)
+
+
+def _add_field_if_missing(apps, schema_editor, model_label: str, field_name: str, field: models.Field) -> None:
+    model = _get_model(apps, model_label)
+    table = model._meta.db_table
+    if not _table_exists(schema_editor, table) or _column_exists(schema_editor, table, field_name):
+        return
+    field.set_attributes_from_name(field_name)
+    schema_editor.add_field(model, field)
+
+
+def _ensure_m2m_if_missing(apps, schema_editor, model_label: str, field_name: str) -> None:
+    model = _get_model(apps, model_label)
+    field = model._meta.get_field(field_name)
+    through = field.remote_field.through
+    table = through._meta.db_table
+    if _table_exists(schema_editor, table):
+        return
+    schema_editor.create_model(through)
 
 
 def create_default_sections(apps, schema_editor):

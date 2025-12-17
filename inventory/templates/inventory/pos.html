@@ -3,165 +3,569 @@
 {% block title %}Касса{% endblock %}
 {% block page_title %}Касса{% endblock %}
 {% block content %}
-<div class="pos-simple card">
-  <div class="card-body">
-    <form method="post" class="needs-validation" novalidate>
-      {% csrf_token %}
-      <div class="row g-3 align-items-end mb-3">
-        <div class="col-md-4">
-          <label class="form-label" for="{{ form.warehouse.id_for_label }}">Склад</label>
-          {{ form.warehouse }}
+<form method="post" class="needs-validation" novalidate>
+  {% csrf_token %}
+  <div class="pos-shell">
+    <div class="pos-toolbar">
+      <div class="d-flex align-items-center gap-3">
+        <span class="fw-bold">Чек №{{ next_receipt }}</span>
+        <div class="text-muted small">Склад</div>
+        <div class="pos-warehouse-select">{{ form.warehouse }}</div>
+        <div class="text-muted small">Остатков: <span id="stock-positions">—</span></div>
+      </div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <input type="text" id="product-search-global" class="form-control form-control-sm" placeholder="Поиск по названию или штрихкоду">
+        <div class="pos-total-box">
+          <div class="text-muted small">Итого</div>
+          <div class="fw-bold fs-5" id="pos-total-display">0</div>
         </div>
-        <div class="col-md-8 text-end text-muted small">
-          Остатков: <span id="stock-positions">—</span> позиций
+        <button type="submit" class="btn btn-success btn-sm">Завершить заказ</button>
+      </div>
+    </div>
+
+    <div class="row g-3 pos-body">
+      <div class="col-lg-5">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body">
+            {{ items_formset.management_form }}
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div class="fw-semibold fs-5">Товары в чеке</div>
+              <button type="button" class="btn btn-link text-primary fw-semibold" id="add-item">Добавить</button>
+            </div>
+            <div id="items-container" class="items-list stacked-cards">
+              {% for item_form in items_formset %}
+                <div class="sale-item soft-card mb-3" data-index="{{ forloop.counter0 }}">
+                  <div class="item-header">Товар</div>
+                  <div class="row g-2 align-items-end">
+                    <div class="col-md-5">
+                      <label class="form-label" for="{{ item_form.product.id_for_label }}">Поиск по названию</label>
+                      <input type="text" class="form-control product-search mb-2" placeholder="Поиск по названию или штрихкоду">
+                      {{ item_form.product }}
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label" for="{{ item_form.barcode.id_for_label }}">Штрихкод</label>
+                      {{ item_form.barcode }}
+                    </div>
+                    <div class="col-md-2">
+                      <label class="form-label" for="{{ item_form.quantity.id_for_label }}">Кол-во</label>
+                      {{ item_form.quantity }}
+                    </div>
+                    <div class="col-md-2">
+                      <label class="form-label" for="{{ item_form.price.id_for_label }}">Цена</label>
+                      {{ item_form.price }}
+                    </div>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center mt-2">
+                   <div class="text-muted fw-semibold">Сумма позиции: <span class="line-total">0</span></div>
+                    <button type="button" class="btn btn-link text-danger p-0 remove-item" title="Удалить">✕</button>
+                  </div>
+                  {% if item_form.errors %}
+                    <div class="text-danger small mt-1">
+                      {% for field in item_form %}
+                        {% for error in field.errors %}<div>{{ error }}</div>{% endfor %}
+                      {% endfor %}
+                      {% for error in item_form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+            {% if items_formset.non_form_errors %}
+              <div class="alert alert-danger mt-2">
+                {% for error in items_formset.non_form_errors %}<div>{{ error }}</div>{% endfor %}
+              </div>
+            {% endif %}
+            <template id="item-template">
+              <div class="sale-item soft-card mb-3" data-index="__prefix__">
+                <div class="item-header">Товар</div>
+                <div class="row g-2 align-items-end">
+                  <div class="col-md-5">
+                    <label class="form-label" for="id_items-__prefix__-product">Поиск по названию</label>
+                    <input type="text" class="form-control product-search mb-2" placeholder="Поиск по названию или штрихкоду">
+                    {{ items_formset.empty_form.product.as_widget }}
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label" for="id_items-__prefix__-barcode">Штрихкод</label>
+                    {{ items_formset.empty_form.barcode.as_widget }}
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label" for="id_items-__prefix__-quantity">Кол-во</label>
+                    {{ items_formset.empty_form.quantity.as_widget }}
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label" for="id_items-__prefix__-price">Цена</label>
+                    {{ items_formset.empty_form.price.as_widget }}
+                  </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                  <div class="text-muted fw-semibold">Сумма позиции: <span class="line-total">0</span></div>
+                  <button type="button" class="btn btn-link text-danger p-0 remove-item" title="Удалить">✕</button>
+                </div>
+              </div>
+            </template>
+
+            <hr class="my-3">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="{{ form.payment_method.id_for_label }}">Метод оплаты</label>
+                {{ form.payment_method }}
+              </div>
+              <div class="col-md-6 text-end">
+                <div class="text-muted small">Итого</div>
+                <input type="text" class="form-control text-end fw-bold" id="pos-total" readonly value="0">
+              </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+              <div class="col-md-4">
+                <label class="form-label" for="{{ form.cash_amount.id_for_label }}">Наличные</label>
+                {{ form.cash_amount }}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="{{ form.halyk_amount.id_for_label }}">Halyk/Карта</label>
+                {{ form.halyk_amount }}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="{{ form.kaspi_amount.id_for_label }}">Kaspi</label>
+                {{ form.kaspi_amount }}
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <label class="form-label" for="{{ form.payment_details.id_for_label }}">Комментарий</label>
+              {{ form.payment_details }}
+            </div>
+
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger mt-3">
+                {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+              </div>
+            {% endif %}
+          </div>
         </div>
       </div>
 
-      <div class="row g-3">
-        <div class="col-md-6">
-          <label class="form-label" for="{{ form.product.id_for_label }}">Товар</label>
-          {{ form.product }}
-          <div class="text-muted small mt-1">На складе: <span id="stock-local">—</span>, всего: <span id="stock-total">—</span></div>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label" for="{{ form.quantity.id_for_label }}">Кол-во</label>
-          {{ form.quantity }}
-        </div>
-        <div class="col-md-3">
-          <label class="form-label" for="{{ form.price.id_for_label }}">Цена</label>
-          {{ form.price }}
-        </div>
-      </div>
-
-      <div class="row g-3 mt-3">
-        <div class="col-md-4">
-          <label class="form-label" for="{{ form.payment_method.id_for_label }}">Метод оплаты</label>
-          {{ form.payment_method }}
-        </div>
-        <div class="col-md-8 d-flex align-items-center justify-content-end">
-          <div class="me-3 text-muted">Итого:</div>
-          <input type="text" class="form-control w-auto text-end fw-bold" id="pos-total" readonly value="0">
-        </div>
-      </div>
-
-      <div class="row g-3 mt-2">
-        <div class="col-md-4">
-          <label class="form-label" for="{{ form.cash_amount.id_for_label }}">Наличные</label>
-          {{ form.cash_amount }}
-        </div>
-        <div class="col-md-4">
-          <label class="form-label" for="{{ form.halyk_amount.id_for_label }}">Halyk/Карта</label>
-          {{ form.halyk_amount }}
-        </div>
-        <div class="col-md-4">
-          <label class="form-label" for="{{ form.kaspi_amount.id_for_label }}">Kaspi</label>
-          {{ form.kaspi_amount }}
+      <div class="col-lg-7">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body d-flex flex-column">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+              <button type="button" class="btn btn-sm btn-primary category-pill active" data-category="">Все товары</button>
+              {% for category in categories %}
+                <button type="button" class="btn btn-sm btn-outline-secondary category-pill" data-category="{{ category.id }}">{{ category.name }}</button>
+              {% endfor %}
+            </div>
+            <div class="catalog-scroll">
+              <div class="catalog-grid" id="product-grid">
+                {% for product in products %}
+                  <div class="product-card" data-product-id="{{ product.id }}" data-name="{{ product.name|lower }}" data-barcode="{{ product.barcode|default:'' }}" data-category="{{ product.category_id }}">
+                    <div class="stock-badge badge-total" data-role="total-stock">—</div>
+                    <div class="stock-badge badge-warehouse" data-role="wh-stock">—</div>
+                    <div class="product-thumb">
+                      {% if product.photo %}
+                        <img src="{{ product.photo.url }}" alt="{{ product.name }}">
+                      {% else %}
+                        <div class="placeholder">Нет фото</div>
+                      {% endif %}
+                    </div>
+                    <div class="product-info">
+                      <div class="product-name">{{ product.name }}</div>
+                      <div class="product-price">{{ product.selling_price }} ₸</div>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-
-      <div class="mt-3">
-        <label class="form-label" for="{{ form.payment_details.id_for_label }}">Комментарий</label>
-        {{ form.payment_details }}
-      </div>
-
-      {% if form.non_field_errors %}
-        <div class="alert alert-danger mt-3">
-          {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
-        </div>
-      {% endif %}
-
-      <div class="d-flex justify-content-between align-items-center mt-4 form-actions">
-        <button type="reset" class="btn btn-light" id="new-order">Очистить</button>
-        <button type="submit" class="btn btn-success">Завершить заказ</button>
-      </div>
-    </form>
+    </div>
   </div>
-</div>
+</form>
 
 <style>
-.pos-simple { border: 1px solid #eef1f5; box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06); }
-.pos-simple label { font-weight: 600; }
-.pos-simple input, .pos-simple select, .pos-simple textarea { border-radius: 10px; }
+.pos-shell { background: #f6f8fb; border-radius: 12px; padding: 12px; }
+.pos-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 12px 0 12px; }
+.pos-warehouse-select select { min-width: 180px; }
+.pos-total-box { background: #f0f4ff; border: 1px solid #dce6ff; padding: 8px 12px; border-radius: 8px; }
+.items-list { max-height: 520px; overflow-y: auto; }
+.stacked-cards { display: flex; flex-direction: column; gap: 12px; }
+.soft-card { background: linear-gradient(180deg, #f9fafc 0%, #f3f6fb 100%); border: 1px solid #e7ecf5; border-radius: 14px; box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06); padding: 10px; }
+.item-header { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+.sale-item label { font-weight: 600; font-size: 12px; color: #1f2a44; }
+.sale-item input, .sale-item select { border-radius: 10px; }
+.sale-item .form-control, .sale-item .form-select { height: 40px; padding: 6px 10px; font-size: 14px; line-height: 1.2; }
+.sale-item .product-search { height: 40px; }
+.split-field[readonly] { background: #f5f6f8; }
+.split-field.locked { pointer-events: none; background: #f1f3f5; color: #6c757d; cursor: not-allowed; }
+.catalog-scroll { flex: 1; overflow-y: auto; padding-right: 6px; }
+.catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.product-card { border: 1px solid #e6ecf5; border-radius: 10px; background: #fff; box-shadow: 0 3px 10px rgba(15,23,42,0.05); cursor: pointer; display: flex; flex-direction: column; transition: transform 0.08s ease, box-shadow 0.08s ease; }
+.product-card.disabled { pointer-events: none; opacity: 0.5; }
+.product-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(15,23,42,0.08); }
+.product-card { position: relative; overflow: hidden; }
+.stock-badge { position: absolute; top: 6px; padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: 700; color: #fff; box-shadow: 0 3px 8px rgba(0,0,0,0.1); }
+.badge-total { left: 6px; background: #f39c12; }
+.badge-warehouse { right: 6px; background: #1abc9c; }
+.badge-empty { opacity: 0.5; }
+.product-thumb { background: #f4f6fa; height: 120px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #eef1f5; border-radius: 10px 10px 0 0; overflow: hidden; }
+.product-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.placeholder { color: #9aa3b5; font-size: 12px; }
+.product-info { padding: 10px; }
+.product-name { font-weight: 600; font-size: 14px; min-height: 38px; }
+.product-price { color: #0d6efd; font-weight: 700; }
+.category-pill.active { background: #0d6efd; color: #fff; }
 </style>
 
-{% if price_map %}
+{% if price_map or barcode_map %}
 {{ price_map|json_script:"price-map" }}
 {{ stock_map|json_script:"stock-map" }}
 {{ stock_positions|json_script:"stock-positions-map" }}
+{% if barcode_map %}{{ barcode_map|json_script:"barcode-map" }}{% endif %}
 <script>
   (function() {
     const priceData = JSON.parse(document.getElementById('price-map').textContent || '{}');
-    window.stockData = JSON.parse(document.getElementById('stock-map').textContent || '{}');
+    const barcodeData = JSON.parse(document.getElementById('barcode-map')?.textContent || '{}');
+    const stockData = JSON.parse(document.getElementById('stock-map')?.textContent || '{}');
     const positionsDataEl = document.getElementById('stock-positions-map');
     const stockPositionsData = positionsDataEl ? JSON.parse(positionsDataEl.textContent || '{}') : {};
-    const productSelect = document.getElementById('id_product');
-    const warehouseSelect = document.getElementById('id_warehouse');
-    const priceInput = document.getElementById('id_price');
-    const qtyInput = document.getElementById('id_quantity');
     const totalInput = document.getElementById('pos-total');
+    const totalDisplay = document.getElementById('pos-total-display');
     const methodSelect = document.getElementById('id_payment_method');
     const cashInput = document.getElementById('id_cash_amount');
     const halykInput = document.getElementById('id_halyk_amount');
     const kaspiInput = document.getElementById('id_kaspi_amount');
-    const stockLocalEl = document.getElementById('stock-local');
-    const stockTotalEl = document.getElementById('stock-total');
+    const warehouseSelect = document.getElementById('id_warehouse');
     const stockPositionsEl = document.getElementById('stock-positions');
+    const itemsContainer = document.getElementById('items-container');
+    const addBtn = document.getElementById('add-item');
+    const totalFormsInput = document.getElementById('id_items-TOTAL_FORMS');
+    const template = document.getElementById('item-template');
+    const productCards = Array.from(document.querySelectorAll('.product-card'));
+    const categoryPills = Array.from(document.querySelectorAll('.category-pill'));
+    const globalSearch = document.getElementById('product-search-global');
 
     const parseVal = (el) => {
       const v = parseFloat(el && el.value);
       return isNaN(v) ? 0 : v;
     };
 
-    const setTotals = () => {
-      const total = (parseVal(priceInput) * (parseVal(qtyInput) || 1)).toFixed(2);
-      if (totalInput) totalInput.value = total;
+    const ensureWarehouseSelected = (silent = false) => {
+      const selected = warehouseSelect && warehouseSelect.value;
+      if (!selected && !silent) {
+        alert('Выберите склад перед добавлением товара');
+        warehouseSelect?.focus();
+      }
+      return !!selected;
+    };
+
+    const toggleWarehouseReady = () => {
+      const ready = ensureWarehouseSelected(true);
+      if (addBtn) addBtn.disabled = !ready;
+      if (globalSearch) {
+        globalSearch.disabled = !ready;
+        globalSearch.placeholder = ready ? 'Поиск по названию или штрихкоду' : 'Сначала выберите склад';
+      }
+      productCards.forEach((card) => card.classList.toggle('disabled', !ready));
+    };
+
+    const applySplit = (total) => {
+      const method = methodSelect ? (methodSelect.value || 'cash') : 'cash';
+      const totalStr = Number(total || 0).toFixed(2);
+      const zero = '0.00';
+      if (method === 'mixed') return;
+      if (method === 'delayed') {
+        if (cashInput) cashInput.value = zero;
+        if (halykInput) halykInput.value = zero;
+        if (kaspiInput) kaspiInput.value = zero;
+        return;
+      }
+      if (cashInput) cashInput.value = method === 'cash' ? totalStr : zero;
+      if (halykInput) halykInput.value = method === 'halyk' ? totalStr : zero;
+      if (kaspiInput) kaspiInput.value = method === 'kaspi' ? totalStr : zero;
+    };
+
+    const lockPaymentFields = () => {
+      const method = methodSelect ? (methodSelect.value || 'cash') : 'cash';
+      const lockInput = (input, locked) => {
+        if (!input) return;
+        input.readOnly = locked;
+        input.tabIndex = locked ? -1 : 0;
+        input.style.pointerEvents = locked ? 'none' : 'auto';
+        input.classList.toggle('locked', locked);
+        if (locked) input.blur();
+      };
+      [
+        { key: 'cash', el: cashInput },
+        { key: 'halyk', el: halykInput },
+        { key: 'kaspi', el: kaspiInput },
+      ].forEach(({ key, el }) => {
+        const locked = method === 'delayed' || (method !== 'mixed' && method !== key);
+        lockInput(el, locked);
+      });
+    };
+
+    const recalcTotal = () => {
+      const rows = itemsContainer ? Array.from(itemsContainer.querySelectorAll('.sale-item')) : [];
+      let total = 0;
+      rows.forEach((row) => {
+        const deleteInput = row.querySelector('input[name$="-DELETE"]');
+        if (deleteInput && deleteInput.checked) return;
+        const qtyInput = row.querySelector('input[name$="-quantity"]');
+        const priceInput = row.querySelector('input[name$="-price"]');
+        const lineTotalEl = row.querySelector('.line-total');
+        const lineTotal = (parseVal(priceInput) * (parseVal(qtyInput) || 0));
+        if (lineTotalEl) lineTotalEl.textContent = lineTotal.toFixed(2);
+        total += lineTotal;
+      });
+      if (totalInput) totalInput.value = total.toFixed(2);
+      if (totalDisplay) totalDisplay.textContent = total.toFixed(2);
       applySplit(total);
     };
 
-    const applySplit = (totalStr) => {
-      const total = parseFloat(totalStr || totalInput.value || 0) || 0;
-      const method = methodSelect ? (methodSelect.value || 'cash') : 'cash';
-      if (method !== 'mixed') {
-        if (cashInput) cashInput.value = method === 'cash' ? total : 0;
-        if (halykInput) halykInput.value = method === 'halyk' ? total : 0;
-        if (kaspiInput) kaspiInput.value = method === 'kaspi' ? total : 0;
+    const findRowByProduct = (productId) => {
+      if (!itemsContainer || !productId) return null;
+      const rows = Array.from(itemsContainer.querySelectorAll('.sale-item'));
+      return rows.find((r) => {
+        const del = r.querySelector('input[name$="-DELETE"]');
+        if (del && del.checked) return false;
+        const select = r.querySelector('select[name$="-product"]');
+        return select && select.value === productId;
+      });
+    };
+
+    const updateStockBadges = () => {
+      const wid = warehouseSelect?.value;
+      productCards.forEach((card) => {
+        const pid = card.dataset.productId;
+        const total = stockData[pid]?.total ?? null;
+        const wh = wid ? (stockData[pid]?.warehouses?.[wid] ?? null) : null;
+        const totalEl = card.querySelector('[data-role="total-stock"]');
+        const whEl = card.querySelector('[data-role="wh-stock"]');
+        if (totalEl) {
+          totalEl.textContent = total !== null ? total : '—';
+          totalEl.classList.toggle('badge-empty', total === null);
+        }
+        if (whEl) {
+          whEl.textContent = wh !== null ? wh : '—';
+          whEl.classList.toggle('badge-empty', wh === null);
+        }
+      });
+    };
+
+    const bindRow = (row) => {
+      const productSelect = row.querySelector('select[name$="-product"]');
+      const qtyInput = row.querySelector('input[name$="-quantity"]');
+      const priceInput = row.querySelector('input[name$="-price"]');
+      const barcodeInput = row.querySelector('input[name$="-barcode"]');
+      const deleteInput = row.querySelector('input[name$="-DELETE"]');
+      const removeBtn = row.querySelector('.remove-item');
+      const searchInput = row.querySelector('.product-search');
+
+      const setPriceFromProduct = () => {
+        const pid = productSelect ? productSelect.value : null;
+        const suggested = pid ? priceData[pid] : null;
+        if (suggested && priceInput && (!priceInput.value || Number(priceInput.value) === 0)) {
+          priceInput.value = suggested;
+        }
+        recalcTotal();
+      };
+
+      const selectByBarcode = () => {
+        if (!barcodeInput) return;
+        const code = (barcodeInput.value || '').trim();
+        if (!code) return;
+        const pid = barcodeData[code];
+        if (!pid) {
+          barcodeInput.classList.add('is-invalid');
+          return;
+        }
+        barcodeInput.classList.remove('is-invalid');
+        const existingRow = findRowByProduct(pid);
+        if (existingRow && existingRow !== row) {
+          const qtyEl = existingRow.querySelector('input[name$="-quantity"]');
+          const currentQty = parseVal(qtyEl) || 0;
+          if (qtyEl) qtyEl.value = currentQty + 1;
+          recalcTotal();
+        } else {
+          if (productSelect) {
+            productSelect.value = pid;
+            productSelect.dispatchEvent(new Event('change'));
+          }
+          if (qtyInput) {
+            const currentQty = parseVal(qtyInput);
+            qtyInput.value = currentQty > 0 ? currentQty + 1 : 1;
+          }
+          recalcTotal();
+        }
+        barcodeInput.value = "";
+      };
+
+      const removeRow = () => {
+        if (deleteInput) {
+          deleteInput.checked = true;
+        }
+        row.style.display = 'none';
+        recalcTotal();
+      };
+
+      if (productSelect) productSelect.addEventListener('change', setPriceFromProduct);
+      if (qtyInput) qtyInput.addEventListener('input', recalcTotal);
+      if (priceInput) priceInput.addEventListener('input', recalcTotal);
+      if (barcodeInput) {
+        barcodeInput.addEventListener('change', selectByBarcode);
+        barcodeInput.addEventListener('input', () => barcodeInput.classList.remove('is-invalid'));
+        barcodeInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            selectByBarcode();
+            qtyInput?.focus();
+          }
+        });
+      }
+      if (searchInput && productSelect) {
+        const baseOptions = Array.from(productSelect.options).map((opt) => ({
+          value: opt.value,
+          label: opt.textContent,
+        }));
+        searchInput.addEventListener('input', () => {
+          const term = (searchInput.value || '').toLowerCase();
+          const current = productSelect.value;
+          productSelect.innerHTML = '';
+          const filtered = term
+            ? baseOptions.filter((opt) => opt.label.toLowerCase().includes(term) || Object.entries(barcodeData || {}).some(([code, pid]) => pid === opt.value && code.includes(term)))
+            : baseOptions;
+          filtered.forEach((opt) => {
+            const o = document.createElement('option');
+            o.value = opt.value;
+            o.textContent = opt.label;
+            productSelect.appendChild(o);
+          });
+          if (current && filtered.some((opt) => opt.value === current)) {
+            productSelect.value = current;
+          }
+          productSelect.dispatchEvent(new Event('change'));
+        });
+      }
+      if (removeBtn) removeBtn.addEventListener('click', removeRow);
+
+      setPriceFromProduct();
+    };
+
+    const addRow = () => {
+      if (!template || !itemsContainer || !totalFormsInput) return null;
+      if (!ensureWarehouseSelected()) return null;
+      const index = parseInt(totalFormsInput.value, 10) || 0;
+      const html = template.innerHTML.replace(/__prefix__/g, index);
+      const wrapper = document.createElement('div');
+      wrapper.classList.add('sale-item', 'card', 'p-3', 'mb-2');
+      wrapper.setAttribute('data-index', index);
+      wrapper.innerHTML = html;
+      itemsContainer.appendChild(wrapper);
+      totalFormsInput.value = index + 1;
+      bindRow(wrapper);
+      return wrapper;
+    };
+
+    const addProductById = (pid) => {
+      if (!pid || !ensureWarehouseSelected()) return;
+      let row = findRowByProduct(pid);
+      if (!row) {
+        row = addRow();
+        const select = row?.querySelector('select[name$="-product"]');
+        if (select) {
+          select.value = pid;
+          select.dispatchEvent(new Event('change'));
+        }
+      }
+      if (row) {
+        const qtyInput = row.querySelector('input[name$="-quantity"]');
+        const priceInput = row.querySelector('input[name$="-price"]');
+        const currentQty = parseVal(qtyInput) || 0;
+        if (qtyInput) qtyInput.value = currentQty + 1;
+        if (priceInput && (!priceInput.value || Number(priceInput.value) === 0)) {
+          const suggested = priceData[pid];
+          if (suggested) priceInput.value = suggested;
+        }
+        recalcTotal();
       }
     };
 
-    const setPriceFromProduct = () => {
-      const productId = productSelect ? productSelect.value : null;
-      const suggested = productId ? priceData[productId] : null;
-      if (suggested && priceInput && (!priceInput.value || Number(priceInput.value) === 0)) {
-        priceInput.value = suggested;
-      }
-      const stock = (window.stockData && productId) ? window.stockData[productId] : {};
-      const warehouseId = warehouseSelect ? warehouseSelect.value : null;
-      let localStock = 0;
-      if (warehouseId && stock && stock.warehouses) {
-        localStock = stock.warehouses[warehouseId] ?? 0;
-      } else if (stock && typeof stock.local !== 'undefined') {
-        localStock = stock.local;
-      }
-      if (stockLocalEl) stockLocalEl.textContent = localStock;
-      if (stockTotalEl) stockTotalEl.textContent = stock ? (stock.total ?? '0') : '0';
-      if (stockPositionsEl) {
-        stockPositionsEl.textContent = warehouseId ? (stockPositionsData[warehouseId] ?? 0) : '0';
-      }
-      setTotals();
+    const filterCards = () => {
+      const activeCat = categoryPills.find((p) => p.classList.contains('active'))?.dataset.category || '';
+      const term = (globalSearch?.value || '').toLowerCase().trim();
+      productCards.forEach((card) => {
+        const name = card.dataset.name || '';
+        const barcode = (card.dataset.barcode || '').toLowerCase();
+        const cat = card.dataset.category || '';
+        const matchesCat = !activeCat || cat === activeCat;
+        const matchesTerm = !term || name.includes(term) || barcode.includes(term);
+        card.style.display = matchesCat && matchesTerm ? 'flex' : 'none';
+      });
     };
 
-    if (productSelect) productSelect.addEventListener('change', setPriceFromProduct);
-    if (warehouseSelect) warehouseSelect.addEventListener('change', setPriceFromProduct);
-    if (priceInput) priceInput.addEventListener('input', setTotals);
-    if (qtyInput) qtyInput.addEventListener('input', setTotals);
-    if (methodSelect) methodSelect.addEventListener('change', () => applySplit());
+    if (addBtn) addBtn.addEventListener('click', addRow);
+    Array.from(itemsContainer?.querySelectorAll('.sale-item') || []).forEach(bindRow);
 
-    document.querySelector('form')?.addEventListener('submit', () => {
-      if (methodSelect && !methodSelect.value) methodSelect.value = 'cash';
-      setTotals();
+    productCards.forEach((card) => {
+      card.addEventListener('click', () => addProductById(card.dataset.productId));
+    });
+    categoryPills.forEach((pill) => {
+      pill.addEventListener('click', () => {
+        categoryPills.forEach((p) => p.classList.remove('active'));
+        pill.classList.add('active');
+        filterCards();
+      });
+    });
+    if (globalSearch) {
+      globalSearch.addEventListener('input', filterCards);
+      globalSearch.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const code = globalSearch.value.trim();
+          if (code && barcodeData[code]) {
+            addProductById(barcodeData[code]);
+            globalSearch.value = '';
+            filterCards();
+          }
+        }
+      });
+    }
+
+    const setStockCount = () => {
+      if (!warehouseSelect || !stockPositionsEl) return;
+      const wid = warehouseSelect.value;
+      stockPositionsEl.textContent = wid ? (stockPositionsData[wid] ?? 0) : '—';
+    };
+
+    if (warehouseSelect) {
+      warehouseSelect.addEventListener('change', () => {
+        setStockCount();
+        toggleWarehouseReady();
+        updateStockBadges();
+      });
+      setStockCount();
+    }
+    toggleWarehouseReady();
+    updateStockBadges();
+
+    if (methodSelect) {
+      methodSelect.addEventListener('change', () => {
+        lockPaymentFields();
+        applySplit(parseVal(totalInput));
+      });
+      lockPaymentFields();
+    }
+
+    document.querySelector('form')?.addEventListener('submit', (e) => {
+      if (!ensureWarehouseSelected()) {
+        e.preventDefault();
+        return;
+      }
+      recalcTotal();
     });
 
-    setPriceFromProduct();
+    recalcTotal();
+    filterCards();
   })();
 </script>
 {% endif %}

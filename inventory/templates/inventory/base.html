@@ -9,91 +9,91 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link href="{% static 'css/dashboard.css' %}" rel="stylesheet">
 </head>
-<body>
+<body class="{% if request.resolver_match.url_name == 'pos' %}pos-full{% endif %}">
 <div class="app-shell">
     {% if request.user.is_authenticated %}
             {% with current=request.resolver_match.url_name %}
             {% with allowed=accessible_sections %}
-    <aside class="app-sidebar">
-        <div class="app-sidebar__brand">
-            <h1>ss_stream</h1>
-            <span>Складской учет</span>
-            <button class="sidebar-close" type="button" data-sidebar-toggle aria-label="Закрыть меню">
-                <i class="bi bi-x-lg"></i>
-            </button>
-        </div>
-        <nav class="sidebar-nav">
-                {% if request.user.is_superuser or 'categories' in allowed %}
-                <a class="sidebar-link {% if current == 'category_list' or current == 'category_add' %}active{% endif %}" href="{% url 'inventory:category_list' %}">
-                    <i class="bi bi-tags"></i>
-                    <span>Категории</span>
-                </a>
+        <aside class="app-sidebar">
+            <div class="app-sidebar__brand">
+                <h1>ss_stream</h1>
+                <span>Складской учет</span>
+                <button class="sidebar-close" type="button" data-sidebar-toggle aria-label="Закрыть меню">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <nav class="sidebar-nav">
+                    {% if request.user.is_superuser or 'categories' in allowed %}
+                    <a class="sidebar-link {% if current == 'category_list' or current == 'category_add' %}active{% endif %}" href="{% url 'inventory:category_list' %}">
+                        <i class="bi bi-tags"></i>
+                        <span>Категории</span>
+                    </a>
+                    {% endif %}
+                    {% if request.user.is_superuser or 'products' in allowed %}
+                    <a class="sidebar-link {% if current == 'product_list' or current == 'product_add' %}active{% endif %}" href="{% url 'inventory:product_list' %}">
+                        <i class="bi bi-box-seam"></i>
+                        <span>Товары</span>
+                    </a>
+                    {% endif %}
+                    {% if request.user.is_superuser or 'employees' in allowed %}
+                    <a class="sidebar-link {% if current == 'employee_list' or current == 'employee_add' or current == 'employee_edit' %}active{% endif %}" href="{% url 'inventory:employee_list' %}">
+                        <i class="bi bi-people"></i>
+                        <span>Сотрудники</span>
+                    </a>
+                    {% endif %}
+                    {% if request.user.is_superuser or 'orders' in allowed %}
+                    <a class="sidebar-link {% if current == 'orders_list' %}active{% endif %}" href="{% url 'inventory:orders_list' %}">
+                        <i class="bi bi-receipt"></i>
+                        <span>Заказы</span>
+                    </a>
+                    {% endif %}
+                    {% if request.user.is_superuser or 'logs' in allowed %}
+                    <a class="sidebar-link {% if current == 'logs_list' %}active{% endif %}" href="{% url 'inventory:logs_list' %}">
+                        <i class="bi bi-clipboard-pulse"></i>
+                        <span>Логи</span>
+                    </a>
+                    {% endif %}
+                    {% if request.user.is_superuser or 'sales' in allowed %}
+                    <a class="sidebar-link {% if current == 'pos' %}active{% endif %}" href="{% url 'inventory:pos' %}">
+                        <i class="bi bi-cash-stack"></i>
+                        <span>Касса</span>
+                    </a>
+                    {% endif %}
+                    {% if request.user.is_superuser or 'warehouses' in allowed %}
+                    <a class="sidebar-link {% if current == 'warehouse_list' or current == 'warehouse_add' or current == 'employee_add' %}active{% endif %}" href="{% url 'inventory:warehouse_list' %}">
+                        <i class="bi bi-building"></i>
+                        <span>Склады</span>
+                    </a>
+                    {% endif %}
+                    {% if request.user.is_superuser or 'stocks' in allowed %}
+                    <a class="sidebar-link {% if current == 'stock_list' %}active{% endif %}" href="{% url 'inventory:stock_list' %}">
+                        <i class="bi bi-bar-chart"></i>
+                        <span>Остатки</span>
+                    </a>
+                    {% endif %}
+                    {% if request.user.is_superuser or 'reports' in allowed %}
+                    <a class="sidebar-link {% if current == 'sales_report' %}active{% endif %}" href="{% url 'inventory:sales_report' %}">
+                        <i class="bi bi-clipboard-data"></i>
+                        <span>Отчеты</span>
+                    </a>
+                    {% endif %}
+            </nav>
+            <div class="sidebar-actions">
+                <div class="text-uppercase muted small fw-bold px-1">Операции</div>
+                {% if request.user.is_superuser or 'incoming' in allowed %}
+                <a class="btn btn-outline-light" href="{% url 'inventory:incoming_add' %}">Приход</a>
+                <a class="btn btn-outline-light mt-2" href="{% url 'inventory:incoming_list' %}">История приходов</a>
                 {% endif %}
-                {% if request.user.is_superuser or 'products' in allowed %}
-                <a class="sidebar-link {% if current == 'product_list' or current == 'product_add' %}active{% endif %}" href="{% url 'inventory:product_list' %}">
-                    <i class="bi bi-box-seam"></i>
-                    <span>Товары</span>
-                </a>
+                {% if request.user.is_superuser or 'movements' in allowed %}
+                <a class="btn btn-outline-light" href="{% url 'inventory:movement_add' %}">Перемещение</a>
+                <a class="btn btn-outline-light mt-2" href="{% url 'inventory:movement_list' %}">История перемещений</a>
                 {% endif %}
-                {% if request.user.is_superuser or 'employees' in allowed %}
-                <a class="sidebar-link {% if current == 'employee_list' or current == 'employee_add' or current == 'employee_edit' %}active{% endif %}" href="{% url 'inventory:employee_list' %}">
-                    <i class="bi bi-people"></i>
-                    <span>Сотрудники</span>
-                </a>
+                {% if not request.user.is_superuser and 'incoming' not in allowed and 'movements' not in allowed %}
+                <div class="text-muted small px-1">Нет доступа</div>
                 {% endif %}
-                {% if request.user.is_superuser or 'orders' in allowed %}
-                <a class="sidebar-link {% if current == 'orders_list' %}active{% endif %}" href="{% url 'inventory:orders_list' %}">
-                    <i class="bi bi-receipt"></i>
-                    <span>Заказы</span>
-                </a>
-                {% endif %}
-                {% if request.user.is_superuser or 'logs' in allowed %}
-                <a class="sidebar-link {% if current == 'logs_list' %}active{% endif %}" href="{% url 'inventory:logs_list' %}">
-                    <i class="bi bi-clipboard-pulse"></i>
-                    <span>Логи</span>
-                </a>
-                {% endif %}
-                {% if request.user.is_superuser or 'sales' in allowed %}
-                <a class="sidebar-link {% if current == 'pos' %}active{% endif %}" href="{% url 'inventory:pos' %}">
-                    <i class="bi bi-cash-stack"></i>
-                    <span>Касса</span>
-                </a>
-                {% endif %}
-                {% if request.user.is_superuser or 'warehouses' in allowed %}
-                <a class="sidebar-link {% if current == 'warehouse_list' or current == 'warehouse_add' or current == 'employee_add' %}active{% endif %}" href="{% url 'inventory:warehouse_list' %}">
-                    <i class="bi bi-building"></i>
-                    <span>Склады</span>
-                </a>
-                {% endif %}
-                {% if request.user.is_superuser or 'stocks' in allowed %}
-                <a class="sidebar-link {% if current == 'stock_list' %}active{% endif %}" href="{% url 'inventory:stock_list' %}">
-                    <i class="bi bi-bar-chart"></i>
-                    <span>Остатки</span>
-                </a>
-                {% endif %}
-                {% if request.user.is_superuser or 'reports' in allowed %}
-                <a class="sidebar-link {% if current == 'sales_report' %}active{% endif %}" href="{% url 'inventory:sales_report' %}">
-                    <i class="bi bi-clipboard-data"></i>
-                    <span>Отчеты</span>
-                </a>
-                {% endif %}
-        </nav>
-        <div class="sidebar-actions">
-            <div class="text-uppercase muted small fw-bold px-1">Операции</div>
-            {% if request.user.is_superuser or 'incoming' in allowed %}
-            <a class="btn btn-outline-light" href="{% url 'inventory:incoming_add' %}">Приход</a>
-            <a class="btn btn-outline-light mt-2" href="{% url 'inventory:incoming_list' %}">История приходов</a>
-            {% endif %}
-            {% if request.user.is_superuser or 'movements' in allowed %}
-            <a class="btn btn-outline-light" href="{% url 'inventory:movement_add' %}">Перемещение</a>
-            <a class="btn btn-outline-light mt-2" href="{% url 'inventory:movement_list' %}">История перемещений</a>
-            {% endif %}
-            {% if not request.user.is_superuser and 'incoming' not in allowed and 'movements' not in allowed %}
-            <div class="text-muted small px-1">Нет доступа</div>
-            {% endif %}
-        </div>
-    </aside>
-    <div class="sidebar-backdrop" data-sidebar-backdrop></div>
+            </div>
+        </aside>
+        <div class="sidebar-backdrop" data-sidebar-backdrop></div>
         {% endwith %}
         {% endwith %}
     {% endif %}
@@ -102,7 +102,7 @@
             <div class="header-inner">
                 <div class="page-title-group">
                     {% if request.user.is_authenticated %}
-                    <button class="btn btn-outline-secondary btn-icon sidebar-toggle d-lg-none" type="button" data-sidebar-toggle aria-label="Открыть меню">
+                    <button class="btn btn-outline-secondary btn-icon sidebar-toggle" type="button" data-sidebar-toggle aria-label="Открыть меню">
                         <i class="bi bi-list"></i>
                     </button>
                     {% endif %}
@@ -141,21 +141,41 @@
 <script>
     (function() {
         const body = document.body;
+        const sidebar = document.querySelector('.app-sidebar');
         const toggles = document.querySelectorAll('[data-sidebar-toggle]');
         const backdrop = document.querySelector('[data-sidebar-backdrop]');
-        const closeSidebar = () => body.classList.remove('sidebar-open');
-        toggles.forEach((btn) => {
-            btn.addEventListener('click', () => {
-                body.classList.toggle('sidebar-open');
-            });
-        });
+        if (backdrop) {
+            backdrop.style.pointerEvents = 'none';
+            backdrop.style.background = 'transparent';
+            backdrop.style.opacity = '0';
+        }
+        if (!sidebar) return;
+
+        const closeSidebar = () => {
+            body.classList.remove('sidebar-open');
+            sidebar.style.transform = 'translateX(-100%)';
+        };
+        const openSidebar = () => {
+            body.classList.add('sidebar-open');
+            sidebar.style.transform = 'translateX(0)';
+        };
+        const toggleSidebar = () => {
+            if (body.classList.contains('sidebar-open')) {
+                closeSidebar();
+            } else {
+                openSidebar();
+            }
+        };
+
+        // стартуем со скрытым меню
+        closeSidebar();
+
+        toggles.forEach((btn) => btn.addEventListener('click', toggleSidebar));
         if (backdrop) {
             backdrop.addEventListener('click', closeSidebar);
         }
-        window.addEventListener('resize', () => {
-            if (window.innerWidth >= 992) {
-                closeSidebar();
-            }
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeSidebar();
         });
     })();
 </script>

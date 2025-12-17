@@ -34,9 +34,10 @@ a {
 }
 
 .app-shell {
-  display: flex;
+  display: block;
   min-height: 100vh;
   position: relative;
+  width: 100%;
 }
 
 .app-sidebar {
@@ -126,7 +127,7 @@ a {
 .sidebar-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(17, 24, 39, 0.45);
+  background: transparent;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease;
@@ -134,12 +135,12 @@ a {
 }
 
 body.sidebar-open .sidebar-backdrop {
-  opacity: 1;
-  pointer-events: auto;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .app-main {
-  flex: 1;
+  width: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -452,7 +453,7 @@ body.sidebar-open {
 }
 
 @media (max-width: 992px) {
-  .app-shell { flex-direction: column; }
+  .app-shell { display: block; }
 
   .app-sidebar {
     position: fixed;

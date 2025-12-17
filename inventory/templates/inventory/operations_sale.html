@@ -13,7 +13,13 @@
                 <form method="post" class="needs-validation" novalidate>
                     {% csrf_token %}
                     <div class="mb-3">
+                        <label class="form-label" for="{{ form.barcode.id_for_label }}">Штрихкод</label>
+                        {{ form.barcode }}
+                        <div class="form-text">Отсканируйте или введите штрихкод — товар подставится автоматически</div>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label" for="{{ form.product.id_for_label }}">{{ form.product.label }}</label>
+                        <input type="text" class="form-control mb-2" id="product-search" placeholder="Поиск по названию или штрихкоду">
                         {{ form.product }}
                     </div>
                     <div class="mb-3">
@@ -75,19 +81,30 @@
         </div>
     </div>
 
-    {% if price_map %}
+    {% if price_map or barcode_map %}
     {{ price_map|json_script:"price-map" }}
+    {% if barcode_map %}{{ barcode_map|json_script:"barcode-map" }}{% endif %}
     <script>
         (function() {
             const priceData = JSON.parse(document.getElementById('price-map').textContent || '{}');
+            const barcodeData = JSON.parse(document.getElementById('barcode-map')?.textContent || '{}');
             const productSelect = document.getElementById('id_product');
+            const productSearch = document.getElementById('product-search');
             const priceInput = document.getElementById('id_price');
             const qtyInput = document.getElementById('id_quantity');
             const methodSelect = document.getElementById('id_payment_method');
             const cashInput = document.getElementById('id_cash_amount');
             const halykInput = document.getElementById('id_halyk_amount');
             const kaspiInput = document.getElementById('id_kaspi_amount');
+            const barcodeInput = document.getElementById('id_barcode');
             if (!productSelect || !priceInput) return;
+            const productBarcodeMap = {};
+            Object.entries(barcodeData || {}).forEach(([code, pid]) => { productBarcodeMap[pid] = code; });
+            const allProductOptions = Array.from(productSelect.options).map((opt) => ({
+                value: opt.value,
+                label: opt.textContent,
+                search: (opt.textContent + ' ' + (productBarcodeMap[opt.value] || '')).toLowerCase(),
+            }));
 
             const setPriceFromProduct = () => {
                 const productId = productSelect.value;
@@ -123,13 +140,60 @@
                 }
             };
 
+            const filterProducts = () => {
+                const term = (productSearch?.value || '').trim().toLowerCase();
+                const current = productSelect.value;
+                const filtered = term ? allProductOptions.filter((opt) => opt.search.includes(term)) : allProductOptions;
+                productSelect.innerHTML = '';
+                filtered.forEach((opt) => {
+                    const o = document.createElement('option');
+                    o.value = opt.value;
+                    o.textContent = opt.label;
+                    productSelect.appendChild(o);
+                });
+                if (current && filtered.some((opt) => opt.value === current)) {
+                    productSelect.value = current;
+                } else if (filtered.length) {
+                    productSelect.value = filtered[0].value;
+                }
+                productSelect.dispatchEvent(new Event('change'));
+            };
+
             productSelect.addEventListener('change', setPriceFromProduct);
             if (qtyInput) qtyInput.addEventListener('input', applySplit);
             if (methodSelect) methodSelect.addEventListener('change', applySplit);
             if (priceInput) priceInput.addEventListener('input', applySplit);
+            if (productSearch) productSearch.addEventListener('input', filterProducts);
+            if (barcodeInput) {
+                const selectByBarcode = () => {
+                    const code = (barcodeInput.value || '').trim();
+                    if (!code) return;
+                    const productId = barcodeData[code];
+                    if (!productId) {
+                        barcodeInput.classList.add('is-invalid');
+                        return;
+                    }
+                    barcodeInput.classList.remove('is-invalid');
+                    productSelect.value = productId;
+                    productSelect.dispatchEvent(new Event('change'));
+                    if (qtyInput && (!qtyInput.value || Number(qtyInput.value) === 0)) {
+                        qtyInput.value = 1;
+                    }
+                };
+                barcodeInput.addEventListener('change', selectByBarcode);
+                barcodeInput.addEventListener('input', () => barcodeInput.classList.remove('is-invalid'));
+                barcodeInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        selectByBarcode();
+                        qtyInput?.focus();
+                    }
+                });
+            }
             // Подставить цену при загрузке, если пусто или 0
             setPriceFromProduct();
             applySplit();
+            filterProducts();
         })();
     </script>
     {% endif %}

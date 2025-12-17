@@ -1,0 +1,104 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Штрихкод — {{ product.name }}</title>
+  <style>
+    body, html {
+      width: 60mm;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+      font-family: "Times New Roman", serif;
+    }
+    .print-item {
+      width: 58mm;
+      height: 39mm;
+      text-align: left;
+      border: 1.5mm solid #111;
+      overflow: hidden;
+      box-sizing: border-box;
+      padding: 2mm 2.5mm 1.5mm 2.5mm;
+    }
+    .title {
+      text-align: center;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.1px;
+      margin: 0 0 2px 0;
+      text-transform: uppercase;
+    }
+    .line { margin: 0; font-size: 12px; line-height: 1.2; }
+    .line strong { font-weight: 700; }
+    .price {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0 0 4px 0;
+    }
+    .price small { font-size: 14px; font-weight: 400; }
+    .barcode-row { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 6px; }
+    .barcode { width: 100%; text-align: center; }
+    .barcode img, .barcode svg { width: 100%; max-height: 15mm; display: block; margin: 0 auto; }
+    .barcode-code { font-family: "Arial", sans-serif; font-size: 13px; letter-spacing: 1px; display: block; }
+    .muted { color: #7c7c7c; font-size: 11px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="print-item">
+    <p class="title">{{ product.name|upper }}</p>
+    <p class="price">Цена: {{ product.selling_price }} <small>тг.</small></p>
+    <div class="barcode-row">
+      <div class="barcode">
+        <svg id="barcode-svg"></svg>
+        <img id="barcode-fallback" src="{{ barcode_data|default:'' }}" alt="Barcode {{ barcode_value }}" class="hidden">
+        {% if barcode_value %}
+          <span class="barcode-code">{{ barcode_value }}</span>
+        {% else %}
+          <div class="muted">Штрихкод не задан</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script>
+    window.onload = function() {
+      const code = "{{ barcode_value|default:'' }}";
+      const svg = document.getElementById("barcode-svg");
+      const fallbackImg = document.getElementById("barcode-fallback");
+      if (typeof JsBarcode === "function" && code) {
+        try {
+          JsBarcode(svg, code, {
+            format: "CODE128",
+            lineColor: "#000",
+            width: 1,
+            height: 38,
+            displayValue: false,
+            margin: 0,
+          });
+          if (fallbackImg) fallbackImg.classList.add("hidden");
+        } catch (e) {
+            console.warn("JsBarcode render failed, fallback to PNG", e);
+            if (fallbackImg) {
+              const canvas = document.createElement("canvas");
+              JsBarcode(canvas, code, {
+                format: "CODE128",
+                lineColor: "#000",
+                width: 1,
+                height: 38,
+                displayValue: false,
+                margin: 0,
+            });
+            fallbackImg.src = canvas.toDataURL("image/png");
+            fallbackImg.classList.remove("hidden");
+          }
+        }
+      } else if (fallbackImg && code) {
+        fallbackImg.classList.remove("hidden");
+      }
+      window.print();
+    };
+  </script>
+</body>
+</html>

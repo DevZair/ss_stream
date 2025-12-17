@@ -1,8 +1,9 @@
 #!/bin/bash
+# Восстановление бэкапа для Postgres или SQLite.
 set -euo pipefail
 
 if [ $# -lt 1 ]; then
-  echo "Использование: $0 <путь_к_дампу.sql.gz>" >&2
+  echo "Использование: $0 <путь_к_дампу.gz>" >&2
   exit 1
 fi
 
@@ -12,12 +13,29 @@ if [ ! -f "$DUMP_PATH" ]; then
   exit 1
 fi
 
-MYSQL_DATABASE=${MYSQL_DATABASE:-warehouse_system}
-MYSQL_USER=${MYSQL_USER:-root}
-MYSQL_PASSWORD=${MYSQL_PASSWORD:-}
-MYSQL_HOST=${MYSQL_HOST:-localhost}
-MYSQL_PORT=${MYSQL_PORT:-3306}
+ENGINE=${DJANGO_DB_ENGINE:-postgres}
 
-echo "[+] Восстанавливаю $MYSQL_DATABASE из $DUMP_PATH"
-gunzip -c "$DUMP_PATH" | MYSQL_PWD="$MYSQL_PASSWORD" mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" "$MYSQL_DATABASE"
+case "$ENGINE" in
+  postgres* )
+    DB_NAME=${POSTGRES_DB:-warehouse_system}
+    DB_USER=${POSTGRES_USER:-postgres}
+    DB_PASSWORD=${POSTGRES_PASSWORD:-}
+    DB_HOST=${POSTGRES_HOST:-localhost}
+    DB_PORT=${POSTGRES_PORT:-5432}
+    echo "[+] Очищаю схему public в $DB_NAME"
+    PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" >/dev/null
+    echo "[+] Восстанавливаю $DB_NAME из $DUMP_PATH"
+    gunzip -c "$DUMP_PATH" | PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME"
+    ;;
+  sqlite* )
+    SQLITE_PATH=${SQLITE_PATH:-db.sqlite3}
+    echo "[+] Восстанавливаю SQLite в $SQLITE_PATH из $DUMP_PATH"
+    gunzip -c "$DUMP_PATH" > "$SQLITE_PATH"
+    ;;
+  * )
+    echo "Неизвестный движок БД: $ENGINE (используй postgres или sqlite)" >&2
+    exit 1
+    ;;
+esac
+
 echo "[✓] Восстановление завершено"

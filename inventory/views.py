@@ -1,4 +1,6 @@
 import csv
+import base64
+from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -16,12 +18,16 @@ from django.db.models import (
     Q,
     Value,
     Sum,
+    Max,
 )
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from reportlab.graphics.barcode import createBarcodeDrawing
+from reportlab.graphics import renderPM
+from reportlab.lib.units import mm
 
 from .forms import (
     CategoryForm,
@@ -30,12 +36,55 @@ from .forms import (
     IncomingForm,
     MovementForm,
     ProductForm,
-    SaleForm,
+    SalePaymentForm,
+    SaleItemFormSet,
     SalesReportFilterForm,
     WarehouseForm,
 )
-from .models import Category, Employee, Product, Sale, Stock, Warehouse, Incoming, Movement
+from .models import (
+    Category,
+    Employee,
+    Product,
+    Sale,
+    SaleItem,
+    SalesReport,
+    Stock,
+    Warehouse,
+    Incoming,
+    Movement,
+)
 from .models import adjust_stock, log_activity
+
+
+def _barcode_data_uri(code: str | None) -> str | None:
+    """
+    Build a base64 PNG barcode data URI for given code using Code128 (без изменения строки).
+    """
+    if not code:
+        return None
+    value = str(code).strip()
+    if not value:
+        return None
+    try:
+        drawing = createBarcodeDrawing(
+            "Code128",
+            value=value,
+            barHeight=22 * mm,
+            barWidth=0.34 * mm,
+            humanReadable=True,
+        )
+        png_bytes = renderPM.drawToString(drawing, fmt="PNG")
+    except Exception:
+        return None
+    return f"data:image/png;base64,{base64.b64encode(png_bytes).decode()}"
+
+
+def _ensure_ean13(value: str) -> str:
+    """
+    Deprecated: no longer used (оставлено для совместимости).
+    """
+    digits = "".join(ch for ch in value if ch.isdigit())
+    return digits
 
 
 def product_list(request):
@@ -47,10 +96,33 @@ def product_list(request):
         .annotate(total_stock=Coalesce(Sum("stocks__quantity"), 0))
         .order_by("name")
     )
+    next_receipt = (Sale.objects.order_by("-id").values_list("id", flat=True).first() or 0) + 1
+    categories = Category.objects.order_by("name")
+    categories = Category.objects.order_by("name")
+    categories = Category.objects.order_by("name")
+    categories = Category.objects.order_by("name")
+    categories = Category.objects.order_by("name")
     return render(
         request,
         "inventory/product_list.html",
         {"products": products},
+    )
+
+
+def product_barcode(request, pk):
+    if not request.user.is_authenticated:
+        return redirect("inventory:login")
+    product = get_object_or_404(Product.objects.select_related("category"), pk=pk)
+    barcode_value = (product.barcode or "").strip()
+    barcode_uri = _barcode_data_uri(barcode_value) if barcode_value else None
+    return render(
+        request,
+        "inventory/product_barcode.html",
+        {
+            "product": product,
+            "barcode_data": barcode_uri,
+            "barcode_value": barcode_value,
+        },
     )
 
 
@@ -188,7 +260,8 @@ def orders_list(request):
     _require_access(request.user, "orders")
     employee_wh = _user_warehouse(request.user)
     orders = (
-        Sale.objects.select_related("product", "warehouse", "seller")
+        Sale.objects.select_related("warehouse", "seller")
+        .prefetch_related("items__product")
         .order_by("-created_at")
     )
     if employee_wh and not request.user.is_superuser:
@@ -222,11 +295,13 @@ def pos_dashboard(request):
         return redirect("inventory:login")
     _require_access(request.user, "sales")
     employee_wh = _user_warehouse(request.user)
+    last_warehouse_id = None
     products = (
         Product.objects.select_related("category")
         .annotate(total_stock=Coalesce(Sum("stocks__quantity"), 0))
         .order_by("name")
     )
+    categories = Category.objects.order_by("name")
 
     keypad_rows = [
         ["1", "2", "3"],
@@ -234,37 +309,88 @@ def pos_dashboard(request):
         ["7", "8", "9"],
         ["000", "0", "<-"]
     ]
+    last_receipt = Sale.objects.aggregate(last=Max("receipt_number")).get("last") or 0
+    next_receipt = last_receipt + 1
 
     if request.method == "POST":
-        form = SaleForm(request.POST, user=request.user)
-        if form.is_valid():
-            try:
-                sale = form.save(commit=False)
-                sale.seller = request.user
-                # если смешанная и суммы не совпадают — выставляем всё в наличные
-                if sale.payment_method == "mixed":
-                    paid_sum = (sale.cash_amount or 0) + (sale.halyk_amount or 0) + (sale.kaspi_amount or 0)
-                    if paid_sum != sale.total:
-                        sale.cash_amount = sale.total
-                        sale.halyk_amount = 0
-                        sale.kaspi_amount = 0
-                sale.save()
-            except ValidationError as exc:
-                form.add_error(None, exc.messages[0])
-            else:
-                log_activity(
-                    request.user,
-                    "Продажа (касса)",
-                    entity=sale,
-                    details=f"Товар: {sale.product}, склад: {sale.warehouse}, сумма: {sale.total}",
+        payment_form = SalePaymentForm(request.POST, user=request.user)
+        items_formset = SaleItemFormSet(request.POST, prefix="items")
+        if payment_form.is_valid() and items_formset.is_valid():
+            items = []
+            total = Decimal("0.00")
+            total_qty = 0
+            for item_form in items_formset:
+                if item_form.cleaned_data.get("DELETE"):
+                    continue
+                product = item_form.cleaned_data.get("product")
+                quantity = item_form.cleaned_data.get("quantity") or 0
+                price = item_form.cleaned_data.get("price") or Decimal("0.00")
+                if not product or quantity <= 0:
+                    continue
+                line_total = Decimal(price) * Decimal(quantity)
+                items.append(
+                    {"product": product, "quantity": quantity, "price": price, "total": line_total}
                 )
-                messages.success(request, "Продажа проведена через кассу.")
-                return redirect("inventory:orders_list")
+                total += line_total
+                total_qty += quantity
+            if not items:
+                payment_form.add_error(None, "Добавьте хотя бы один товар")
+            else:
+                payment_form.normalize_payments(total)
+                try:
+                    with transaction.atomic():
+                        sale = payment_form.save(commit=False)
+                        sale.seller = request.user
+                        last_receipt_locked = (
+                            Sale.objects.select_for_update()
+                            .order_by("-receipt_number")
+                            .values_list("receipt_number", flat=True)
+                            .first()
+                            or 0
+                        )
+                        sale.receipt_number = last_receipt_locked + 1
+                        sale.total = total
+                        sale.quantity = total_qty
+                        sale.price = total
+                        sale.product = items[0]["product"]
+                        sale.save()
+                        for item in items:
+                            SaleItem.objects.create(
+                                sale=sale,
+                                product=item["product"],
+                                quantity=item["quantity"],
+                                price=item["price"],
+                                total=item["total"],
+                            )
+                        SalesReport.objects.create(sale=sale)
+                except ValidationError as exc:
+                    payment_form.add_error(None, exc.messages[0])
+                else:
+                    item_details = "; ".join(
+                        f"{it['product']} x{it['quantity']} @ {it['price']}"
+                        for it in items
+                    )
+                    log_activity(
+                        request.user,
+                        "Продажа (касса)",
+                        entity=sale,
+                        details=f"{item_details}; склад: {sale.warehouse}, сумма: {sale.total}",
+                    )
+                    request.session["pos_last_wh"] = sale.warehouse_id
+                    messages.success(request, f"Продажа проведена через кассу. Чек №{sale.receipt_number}.")
+                    return redirect("inventory:pos")
     else:
-        form = SaleForm(user=request.user)
+        last_warehouse_id = request.session.pop("pos_last_wh", None)
+        payment_form = SalePaymentForm(user=request.user)
+        if last_warehouse_id:
+            wh_qs = payment_form.fields["warehouse"].queryset
+            if wh_qs.filter(id=last_warehouse_id).exists():
+                payment_form.initial["warehouse"] = last_warehouse_id
+                payment_form.fields["warehouse"].initial = last_warehouse_id
+        items_formset = SaleItemFormSet(prefix="items", initial=[])
 
     available_wh_ids = list(
-        form.fields["warehouse"].queryset.values_list("id", flat=True)
+        payment_form.fields["warehouse"].queryset.values_list("id", flat=True)
     )
     stocks_qs = Stock.objects.filter(warehouse_id__in=available_wh_ids)
 
@@ -286,18 +412,36 @@ def pos_dashboard(request):
         warehouse_stock_counts[str(wid)] = cnt or 0
 
     price_map = {str(p.id): str(p.selling_price) for p in products}
+    barcode_map = {p.barcode: str(p.id) for p in products if p.barcode}
+    products_payload = [
+        {
+            "id": str(p.id),
+            "name": p.name,
+            "category": p.category.name,
+            "category_id": p.category_id,
+            "price": str(p.selling_price),
+            "barcode": p.barcode or "",
+            "photo": p.photo.url if p.photo else "",
+        }
+        for p in products
+    ]
 
     return render(
         request,
         "inventory/pos.html",
         {
-            "form": form,
+            "form": payment_form,
+            "items_formset": items_formset,
             "products": products,
+            "categories": categories,
             "warehouse": employee_wh,
             "stock_positions": warehouse_stock_counts,
             "keypad_rows": keypad_rows,
             "price_map": price_map,
             "stock_map": stock_map,
+            "barcode_map": barcode_map,
+            "products_payload": products_payload,
+            "next_receipt": next_receipt,
         },
     )
 
@@ -488,9 +632,6 @@ def _handle_stock_operation(
         form = form_class(request.POST, user=request.user)
         if form.is_valid():
             try:
-                # Проставляем продавца для продаж
-                if isinstance(form, SaleForm):
-                    form.instance.seller = request.user
                 instance = form.save()
             except ValidationError as exc:
                 form.add_error(None, exc.messages[0])
@@ -507,11 +648,6 @@ def _handle_stock_operation(
         "submit_label": "Сохранить",
         **(extra_context or {}),
     }
-
-    # Передаем цены продуктов для автоподстановки в форме продажи
-    if isinstance(form, SaleForm):
-        qs = form.fields["product"].queryset
-        context["price_map"] = {str(p.id): str(p.selling_price) for p in qs}
     return render(
         request,
         template,
@@ -543,30 +679,37 @@ def sales_report(request):
     _require_access(request.user, "reports")
     employee_wh = _user_warehouse(request.user)
     sales = (
-        Sale.objects.select_related("product", "warehouse")
+        Sale.objects.select_related("warehouse", "seller")
+        .prefetch_related("items__product")
         .order_by("-created_at")
     )
     if employee_wh and not request.user.is_superuser:
         sales = sales.filter(warehouse=employee_wh)
-    form = SalesReportFilterForm(request.GET or None)
+    form = SalesReportFilterForm(request.GET or None, user=request.user, employee_wh=employee_wh)
     start_date = end_date = None
     if form.is_valid():
         start_date = form.cleaned_data.get("start_date")
         end_date = form.cleaned_data.get("end_date")
+        selected_wh = form.cleaned_data.get("warehouse")
+        if selected_wh:
+            sales = sales.filter(warehouse=selected_wh)
         if start_date:
             sales = sales.filter(created_at__date__gte=start_date)
         if end_date:
             sales = sales.filter(created_at__date__lte=end_date)
     profit_expression = ExpressionWrapper(
-        (F("price") - F("product__purchase_price")) * F("quantity"),
+        (F("items__price") - F("items__product__purchase_price")) * F("items__quantity"),
         output_field=DecimalField(max_digits=14, decimal_places=2),
     )
-    sales = sales.annotate(profit=profit_expression)
+    sales = sales.annotate(
+        profit=Coalesce(Sum(profit_expression), Value(0, output_field=DecimalField(max_digits=14, decimal_places=2))),
+        total_items=Coalesce(Sum("items__quantity"), 0),
+    )
     sales_count = sales.count()
 
     zero_decimal = Value(0, output_field=DecimalField(max_digits=14, decimal_places=2))
     raw_stats = sales.aggregate(
-        total_qty=Coalesce(Sum("quantity"), 0),
+        total_qty=Coalesce(Sum("items__quantity"), 0),
         total_amount=Coalesce(Sum("total"), zero_decimal),
         total_profit=Coalesce(Sum("profit"), zero_decimal),
         kaspi_total=Coalesce(
@@ -615,21 +758,22 @@ def _export_sales_csv(sales_queryset):
     writer.writerow(
         ["Дата", "Склад", "Товар", "Количество", "Цена", "Сумма", "Метод оплаты"]
     )
-    for sale in sales_queryset:
+    for sale in sales_queryset.prefetch_related("items__product"):
         sale_date = sale.created_at
         if timezone.is_aware(sale_date):
             sale_date_display = timezone.localtime(sale_date).strftime("%Y-%m-%d %H:%M")
         else:
             sale_date_display = sale_date.strftime("%Y-%m-%d %H:%M")
-        writer.writerow([
-            sale_date_display,
-            sale.warehouse.name,
-            sale.product.name,
-            sale.quantity,
-            sale.price,
-            sale.total,
-            sale.get_payment_method_display(),
-        ])
+        for item in sale.items.all():
+            writer.writerow([
+                sale_date_display,
+                sale.warehouse.name,
+                item.product.name,
+                item.quantity,
+                item.price,
+                item.total,
+                sale.get_payment_method_display(),
+            ])
     return response
 
 

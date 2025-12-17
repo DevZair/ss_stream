@@ -1,3 +1,4 @@
+import secrets
 from decimal import Decimal
 import uuid
 
@@ -10,6 +11,11 @@ from django.utils import timezone
 
 def generate_warehouse_code() -> str:
     return uuid.uuid4().hex[:8].upper()
+
+
+def generate_barcode(length: int = 13) -> str:
+    """Generate a numeric barcode-like string."""
+    return "".join(secrets.choice("0123456789") for _ in range(length))
 
 
 class Category(models.Model):
@@ -120,6 +126,13 @@ class AccessSection(models.Model):
 
 class Product(models.Model):
     name = models.CharField(max_length=255)
+    barcode = models.CharField(
+        max_length=32,
+        unique=True,
+        blank=True,
+        null=True,
+        help_text="Оставьте пустым — сгенерируем уникальный штрихкод",
+    )
     category = models.ForeignKey(
         Category, on_delete=models.PROTECT, related_name="products"
     )
@@ -136,6 +149,23 @@ class Product(models.Model):
     def __str__(self) -> str:
         return self.name
 
+    def _ensure_barcode(self):
+        # Generate and assign a unique barcode if missing.
+        if self.barcode:
+            self.barcode = self.barcode.strip() or None
+        if self.barcode:
+            return
+        for _ in range(10):
+            candidate = generate_barcode()
+            if not Product.objects.filter(barcode=candidate).exists():
+                self.barcode = candidate
+                return
+        raise ValidationError("Не удалось сгенерировать уникальный штрихкод.")
+
+    def save(self, *args, **kwargs):
+        self._ensure_barcode()
+        super().save(*args, **kwargs)
+
 
 class Stock(models.Model):
     warehouse = models.ForeignKey(
@@ -144,7 +174,7 @@ class Stock(models.Model):
     product = models.ForeignKey(
         Product, on_delete=models.CASCADE, related_name="stocks"
     )
-    quantity = models.PositiveIntegerField(default=0)
+    quantity = models.IntegerField(default=0)
 
     class Meta:
         unique_together = ("warehouse", "product")
@@ -155,9 +185,9 @@ class Stock(models.Model):
         return f"{self.warehouse} - {self.product}: {self.quantity}"
 
 
-def adjust_stock(warehouse: Warehouse, product: Product, delta: int) -> "Stock":
+def adjust_stock(warehouse: Warehouse, product: Product, delta: int, *, allow_negative: bool = False) -> "Stock":
     """
-    Atomically update stock and ensure quantity never becomes negative.
+    Atomically update stock. By default не уходим в минус, но можно разрешить для продажи.
     """
     with transaction.atomic():
         stock, _ = Stock.objects.select_for_update().get_or_create(
@@ -168,7 +198,7 @@ def adjust_stock(warehouse: Warehouse, product: Product, delta: int) -> "Stock":
         if delta == 0:
             return stock
         new_quantity = stock.quantity + delta
-        if new_quantity < 0:
+        if new_quantity < 0 and not allow_negative and delta < 0:
             raise ValidationError("Недостаточно товара на складе.")
         stock.quantity = new_quantity
         stock.save()
@@ -250,15 +280,21 @@ class Sale(models.Model):
         ("halyk", "Halyk"),
         ("cash", "Наличные"),
         ("mixed", "Смешанная"),
+        ("delayed", "Отложка"),
     ]
 
     product = models.ForeignKey(
-        Product, on_delete=models.PROTECT, related_name="sales"
+        Product,
+        on_delete=models.PROTECT,
+        related_name="sales",
+        null=True,
+        blank=True,
     )
+    receipt_number = models.PositiveIntegerField(default=0, unique=True, db_index=True)
     warehouse = models.ForeignKey(
         Warehouse, on_delete=models.CASCADE, related_name="sales"
     )
-    quantity = models.PositiveIntegerField()
+    quantity = models.PositiveIntegerField(default=0)
     price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     total = models.DecimalField(
         max_digits=12, decimal_places=2, editable=False, default=Decimal("0.00")
@@ -283,39 +319,51 @@ class Sale(models.Model):
         verbose_name_plural = "Продажи"
 
     def __str__(self) -> str:
-        return f"{self.product} ({self.quantity})"
+        if self.product:
+            return f"{self.product} ({self.quantity})"
+        return f"Продажа #{self.pk} на {self.total}"
 
     def save(self, *args, **kwargs):
         if self.pk:
             raise ValidationError("Редактирование продаж запрещено.")
-        if not self.price:
-            self.price = self.product.selling_price
-        self.total = Decimal(self.price) * Decimal(self.quantity)
-
-        # Распределение платежей
-        if self.payment_method != "mixed":
-            self.cash_amount = self.halyk_amount = self.kaspi_amount = Decimal("0.00")
-            if self.payment_method == "cash":
-                self.cash_amount = self.total
-            elif self.payment_method == "halyk":
-                self.halyk_amount = self.total
-            elif self.payment_method == "kaspi":
-                self.kaspi_amount = self.total
+        if not self.receipt_number:
+            with transaction.atomic():
+                last = (
+                    Sale.objects.select_for_update()
+                    .order_by("-receipt_number")
+                    .first()
+                )
+                self.receipt_number = (last.receipt_number if last else 0) + 1
+                super().save(*args, **kwargs)
         else:
-            paid_sum = sum([
-                Decimal(self.cash_amount or 0),
-                Decimal(self.halyk_amount or 0),
-                Decimal(self.kaspi_amount or 0),
-            ])
-            if paid_sum != self.total:
-                raise ValidationError("Сумма оплат должна совпадать с итогом продажи.")
-            if paid_sum <= 0:
-                raise ValidationError("Укажите суммы для смешанной оплаты.")
-
-        with transaction.atomic():
-            adjust_stock(self.warehouse, self.product, -self.quantity)
             super().save(*args, **kwargs)
-            SalesReport.objects.create(sale=self)
+
+
+class SaleItem(models.Model):
+    sale = models.ForeignKey(
+        Sale, on_delete=models.CASCADE, related_name="items"
+    )
+    product = models.ForeignKey(
+        Product, on_delete=models.PROTECT, related_name="sale_items"
+    )
+    quantity = models.PositiveIntegerField()
+    price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    class Meta:
+        verbose_name = "Позиция продажи"
+        verbose_name_plural = "Позиции продаж"
+
+    def __str__(self) -> str:
+        return f"{self.product} x {self.quantity}"
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Редактирование позиций продажи запрещено.")
+        self.total = Decimal(self.price) * Decimal(self.quantity)
+        with transaction.atomic():
+            adjust_stock(self.sale.warehouse, self.product, -self.quantity, allow_negative=True)
+            super().save(*args, **kwargs)
 
 
 class SalesReport(models.Model):

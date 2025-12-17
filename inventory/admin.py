@@ -10,6 +10,7 @@ from .models import (
     ActivityLog,
     Product,
     Sale,
+    SaleItem,
     SalesReport,
     Stock,
     Warehouse,
@@ -46,6 +47,13 @@ class ProductStockInline(admin.TabularInline):
     can_delete = False
 
 
+class SaleItemInline(admin.TabularInline):
+    model = SaleItem
+    extra = 0
+    can_delete = False
+    readonly_fields = ("product", "quantity", "price", "total")
+
+
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
     list_display = ("name", "is_active", "created_at")
@@ -71,13 +79,13 @@ class EmployeeAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "category", "purchase_price", "selling_price", "has_photo")
+    list_display = ("name", "barcode", "category", "purchase_price", "selling_price", "has_photo")
     list_filter = ("category",)
-    search_fields = ("name",)
+    search_fields = ("name", "barcode")
     readonly_fields = ("photo_preview",)
     inlines = (ProductStockInline,)
     fieldsets = (
-        (None, {"fields": ("name", "category")}),
+        (None, {"fields": ("name", "barcode", "category")}),
         ("Ценообразование", {"fields": ("purchase_price", "selling_price")}),
         ("Фото", {"fields": ("photo", "photo_preview")}),
     )
@@ -124,11 +132,12 @@ class MovementAdmin(admin.ModelAdmin):
 
 @admin.register(Sale)
 class SaleAdmin(admin.ModelAdmin):
-    list_display = ("product", "warehouse", "quantity", "price", "total", "payment_method", "seller", "created_at")
-    list_filter = ("warehouse", "product__category", "payment_method", "created_at")
+    list_display = ("receipt_number", "warehouse", "total", "payment_method", "seller", "created_at")
+    list_filter = ("warehouse", "payment_method", "created_at", "items__product__category")
     date_hierarchy = "created_at"
-    search_fields = ("product__name", "seller__username")
-    readonly_fields = ("total",)
+    search_fields = ("items__product__name", "seller__username")
+    readonly_fields = ("total", "receipt_number")
+    inlines = (SaleItemInline,)
 
 
 @admin.register(SalesReport)

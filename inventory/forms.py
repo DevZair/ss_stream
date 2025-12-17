@@ -1,5 +1,8 @@
+from decimal import Decimal
+
 from django import forms
 from django.contrib.auth import get_user_model
+from django.forms import formset_factory
 
 from .models import (
     AccessSection,
@@ -9,6 +12,7 @@ from .models import (
     Movement,
     Product,
     Sale,
+    SaleItem,
     Warehouse,
 )
 
@@ -54,6 +58,7 @@ class ProductForm(StyledFormMixin, forms.ModelForm):
         model = Product
         fields = (
             "name",
+            "barcode",
             "category",
             "purchase_price",
             "selling_price",
@@ -62,6 +67,7 @@ class ProductForm(StyledFormMixin, forms.ModelForm):
         widgets = {
             "purchase_price": forms.NumberInput(attrs={"step": "0.01"}),
             "selling_price": forms.NumberInput(attrs={"step": "0.01"}),
+            "barcode": forms.TextInput(attrs={"placeholder": "Штрихкод (оставьте пустым для авто)"}),
         }
 
 
@@ -261,7 +267,7 @@ class MovementForm(StyledFormMixin, forms.ModelForm):
         widgets = {"date": forms.DateInput(attrs={"type": "date"})}
 
 
-class SaleForm(StyledFormMixin, forms.ModelForm):
+class SalePaymentForm(StyledFormMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
@@ -269,23 +275,17 @@ class SaleForm(StyledFormMixin, forms.ModelForm):
             wh = user.employee_profile.warehouse
             self.fields["warehouse"].queryset = Warehouse.objects.filter(pk=wh.pk)
             self.fields["warehouse"].initial = wh
-        self.fields["price"].widget.attrs.setdefault("placeholder", "Цена продажи")
         for amount_field in ("cash_amount", "halyk_amount", "kaspi_amount"):
             if amount_field in self.fields:
                 self.fields[amount_field].widget.attrs.setdefault("step", "0.01")
                 self.fields[amount_field].widget.attrs.setdefault("placeholder", "0")
-        # Прячем поля разбиения, если выбран не смешанный метод (JS откроет при смешанной)
-        self.fields["cash_amount"].widget.attrs.setdefault("class", "form-control split-field")
-        self.fields["halyk_amount"].widget.attrs.setdefault("class", "form-control split-field")
-        self.fields["kaspi_amount"].widget.attrs.setdefault("class", "form-control split-field")
+                self.fields[amount_field].widget.attrs.setdefault("class", "form-control split-field")
+        self.fields["payment_details"].widget.attrs.setdefault("placeholder", "Комментарий по оплате")
 
     class Meta:
         model = Sale
         fields = (
-            "product",
             "warehouse",
-            "quantity",
-            "price",
             "payment_method",
             "cash_amount",
             "halyk_amount",
@@ -293,10 +293,9 @@ class SaleForm(StyledFormMixin, forms.ModelForm):
             "payment_details",
         )
         widgets = {
-            "price": forms.NumberInput(attrs={"step": "0.01"}),
+            "payment_details": forms.TextInput(),
         }
         labels = {
-            "price": "Цена продажи",
             "payment_method": "Метод оплаты",
             "cash_amount": "Наличные",
             "halyk_amount": "Halyk/Карта",
@@ -304,42 +303,67 @@ class SaleForm(StyledFormMixin, forms.ModelForm):
             "payment_details": "Комментарий по оплате",
         }
 
-    def clean(self):
-        cleaned = super().clean()
-        product = cleaned.get("product")
-        quantity = cleaned.get("quantity") or 0
-        price = cleaned.get("price") or (product.selling_price if product else None)
-        if price is None:
-            return cleaned
-        total = (price or 0) * quantity
-        cleaned["price"] = price
-        payment_method = cleaned.get("payment_method")
-        cash = cleaned.get("cash_amount") or 0
-        halyk = cleaned.get("halyk_amount") or 0
-        kaspi = cleaned.get("kaspi_amount") or 0
-
-        if payment_method != "mixed":
-            cash = halyk = kaspi = 0
-            if payment_method == "cash":
+    def normalize_payments(self, total: Decimal):
+        """
+        Normalize payment split to match total.
+        """
+        method = self.cleaned_data.get("payment_method")
+        cash = self.cleaned_data.get("cash_amount") or Decimal("0.00")
+        halyk = self.cleaned_data.get("halyk_amount") or Decimal("0.00")
+        kaspi = self.cleaned_data.get("kaspi_amount") or Decimal("0.00")
+        if method == "delayed":
+            cash = halyk = kaspi = Decimal("0.00")
+        elif method != "mixed":
+            cash = halyk = kaspi = Decimal("0.00")
+            if method == "cash":
                 cash = total
-            elif payment_method == "halyk":
+            elif method == "halyk":
                 halyk = total
-            elif payment_method == "kaspi":
+            elif method == "kaspi":
                 kaspi = total
         else:
             paid_sum = cash + halyk + kaspi
             if paid_sum <= 0:
                 cash = total
-                halyk = 0
-                kaspi = 0
+                halyk = kaspi = Decimal("0.00")
             elif paid_sum != total:
-                # нормализуем: добавляем разницу в наличные
                 cash = cash + (total - paid_sum)
+        self.cleaned_data["cash_amount"] = cash
+        self.cleaned_data["halyk_amount"] = halyk
+        self.cleaned_data["kaspi_amount"] = kaspi
 
-        cleaned["cash_amount"] = cash
-        cleaned["halyk_amount"] = halyk
-        cleaned["kaspi_amount"] = kaspi
+
+class SaleItemForm(StyledFormMixin, forms.ModelForm):
+    barcode = forms.CharField(
+        label="Штрихкод",
+        required=False,
+        widget=forms.TextInput(attrs={"placeholder": "Скан или ввод штрихкода"}),
+    )
+
+    class Meta:
+        model = SaleItem
+        fields = ("product", "quantity", "price")
+        widgets = {
+            "price": forms.NumberInput(attrs={"step": "0.01"}),
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        barcode_value = (cleaned.get("barcode") or "").strip()
+        if barcode_value and not cleaned.get("product"):
+            try:
+                cleaned["product"] = Product.objects.get(barcode=barcode_value)
+            except Product.DoesNotExist:
+                self.add_error("barcode", "Товар с таким штрихкодом не найден")
+        product = cleaned.get("product")
+        if product is None:
+            self.add_error("product", "Выберите товар")
+            return cleaned
+        if not cleaned.get("price"):
+            cleaned["price"] = product.selling_price
         return cleaned
+
+SaleItemFormSet = formset_factory(SaleItemForm, extra=0, can_delete=True)
 
 
 class SalesReportFilterForm(StyledFormMixin, forms.Form):
@@ -353,3 +377,19 @@ class SalesReportFilterForm(StyledFormMixin, forms.Form):
         label="Дата до",
         widget=forms.DateInput(attrs={"type": "date"}),
     )
+    warehouse = forms.ModelChoiceField(
+        required=False,
+        queryset=Warehouse.objects.none(),
+        label="Касса/склад",
+        empty_label="Все кассы",
+    )
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop("user", None)
+        employee_wh = kwargs.pop("employee_wh", None)
+        super().__init__(*args, **kwargs)
+        qs = Warehouse.objects.all()
+        if user and not getattr(user, "is_superuser", False) and employee_wh:
+            qs = qs.filter(pk=employee_wh.pk)
+            self.fields["warehouse"].initial = employee_wh
+        self.fields["warehouse"].queryset = qs

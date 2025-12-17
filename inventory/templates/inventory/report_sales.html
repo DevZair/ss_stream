@@ -16,6 +16,10 @@
                 <label class="form-label small text-muted mb-1">{{ form.end_date.label }}</label>
                 {{ form.end_date }}
             </div>
+            <div class="flex-grow-1" style="min-width: 220px;">
+                <label class="form-label small text-muted mb-1">{{ form.warehouse.label }}</label>
+                {{ form.warehouse }}
+            </div>
             <div class="d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary btn-icon"><i class="bi bi-search"></i> Показать</button>
                 <a href="{% url 'inventory:sales_report' %}" class="btn btn-soft">Сброс</a>
@@ -108,28 +112,30 @@
                 <thead>
                 <tr>
                     <th>Дата</th>
-                    <th>Товар</th>
-                    <th>Кол-во</th>
-                    <th>Цена продажи</th>
+                    <th>Склад</th>
+                    <th>Товары</th>
                     <th>Итого</th>
                     <th>Метод оплаты</th>
-                    <th>Склад</th>
                 </tr>
                 </thead>
                 <tbody>
                 {% for sale in sales %}
                     <tr>
                         <td>{{ sale.created_at|date:"d.m.Y H:i" }}</td>
-                        <td class="fw-semibold">{{ sale.product.name }}</td>
-                        <td>{{ sale.quantity }}</td>
-                        <td>{{ sale.price }} ₸</td>
+                        <td>{{ sale.warehouse.name }}</td>
+                        <td>
+                            <ul class="list-unstyled mb-0">
+                                {% for item in sale.items.all %}
+                                    <li>{{ item.product.name }} × {{ item.quantity }} <span class="text-muted">({{ item.price }} ₸)</span> = {{ item.total }} ₸</li>
+                                {% endfor %}
+                            </ul>
+                        </td>
                         <td class="fw-bold">{{ sale.total }} ₸</td>
                         <td>{{ sale.get_payment_method_display }}</td>
-                        <td>{{ sale.warehouse.name }}</td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">Продаж за выбранный период нет.</td>
+                        <td colspan="5" class="text-center text-muted py-4">Продаж за выбранный период нет.</td>
                     </tr>
                 {% endfor %}
                 </tbody>

@@ -11,11 +11,10 @@
                 <thead>
                 <tr>
                     <th class="text-muted">#</th>
+                    <th>Чек №</th>
                     <th>Дата</th>
                     <th>Склад</th>
-                    <th>Товар</th>
-                    <th>Кол-во</th>
-                    <th>Цена</th>
+                    <th>Товары</th>
                     <th>Сумма</th>
                     <th>Оплата</th>
                     <th>Продал</th>
@@ -25,11 +24,16 @@
                 {% for order in orders %}
                     <tr>
                         <td class="text-muted">{{ forloop.counter }}</td>
+                        <td>{{ order.receipt_number|default:order.id }}</td>
                         <td>{{ order.created_at|date:"Y-m-d H:i" }}</td>
                         <td>{{ order.warehouse }}</td>
-                        <td>{{ order.product }}</td>
-                        <td class="fw-semibold">{{ order.quantity }}</td>
-                        <td>{{ order.price }}</td>
+                        <td>
+                            <ul class="list-unstyled mb-0">
+                                {% for item in order.items.all %}
+                                    <li>{{ item.product.name }} × {{ item.quantity }} <span class="text-muted">({{ item.price }} ₸)</span></li>
+                                {% endfor %}
+                            </ul>
+                        </td>
                         <td class="fw-semibold">{{ order.total }}</td>
                         <td>
                             {{ order.get_payment_method_display }}
@@ -43,7 +47,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="9" class="text-center text-muted py-4">Заказов пока нет</td>
+                        <td colspan="8" class="text-center text-muted py-4">Заказов пока нет</td>
                     </tr>
                 {% endfor %}
                 </tbody>
