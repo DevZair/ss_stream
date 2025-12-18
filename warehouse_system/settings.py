@@ -17,6 +17,12 @@ ALLOWED_HOSTS = [
     if host.strip()
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
 
 
 INSTALLED_APPS = [
@@ -127,20 +133,33 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 JAZZMIN_SETTINGS = {
-    "site_title": "ss_stream Admin",
-    "site_header": "ss_stream",
+    "site_title": "SS Stream Admin",
+    "site_header": "SS Stream",
+    "site_brand": "SS Stream",
     "welcome_sign": "Управление складом",
+    "site_logo": "apple-touch-icon.png",
+    "site_logo_classes": "img-circle",
+    "login_logo": "apple-touch-icon.png",
+    "login_logo_classes": "img-circle",
     "copyright": "ss_stream",
     "search_model": "inventory.Product",
     "show_sidebar": True,
     "order_with_respect_to": ["inventory", "auth", "inventory.Product"],
+    "navigation_expanded": True,
+    "changeform_format": "horizontal_tabs",
+    "related_modal_active": True,
 }
 
 JAZZMIN_UI_TWEAKS = {
-    "theme": "lux",
+    "theme": "flatly",
     "dark_mode_theme": "darkly",
-    "navbar": "navbar-dark navbar-primary",
-    "sidebar": "sidebar-dark-primary",
+    "navbar": "navbar-white navbar-light border-bottom",
+    "sidebar": "sidebar-light-primary",
+    "sidebar_nav_small_text": False,
+    "sidebar_disable_expand": False,
+    "sidebar_nav_flat_style": True,
+    "sidebar_nav_child_indent": True,
+    "brand_colour": "navbar-light",
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

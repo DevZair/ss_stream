@@ -455,15 +455,16 @@
       if (!template || !itemsContainer || !totalFormsInput) return null;
       if (!ensureWarehouseSelected()) return null;
       const index = parseInt(totalFormsInput.value, 10) || 0;
-      const html = template.innerHTML.replace(/__prefix__/g, index);
-      const wrapper = document.createElement('div');
-      wrapper.classList.add('sale-item', 'card', 'p-3', 'mb-2');
-      wrapper.setAttribute('data-index', index);
-      wrapper.innerHTML = html;
-      itemsContainer.appendChild(wrapper);
+      const html = template.innerHTML.replace(/__prefix__/g, index).trim();
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      const row = tmp.firstElementChild;
+      if (!row) return null;
+      row.dataset.index = index;
+      itemsContainer.appendChild(row);
       totalFormsInput.value = index + 1;
-      bindRow(wrapper);
-      return wrapper;
+      bindRow(row);
+      return row;
     };
 
     const addProductById = (pid) => {

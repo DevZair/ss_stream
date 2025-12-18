@@ -3,6 +3,7 @@ from decimal import Decimal
 from django import forms
 from django.contrib.auth import get_user_model
 from django.forms import formset_factory
+from django.contrib.auth.models import Group
 from django.utils import timezone
 
 from .models import (
@@ -31,6 +32,32 @@ POSITION_PRESETS = {
     "cashier": ["sales", "stocks"],
     "accountant": ["reports", "stocks"],
 }
+
+POSITION_GROUP_MAP = {
+    "admin": "Администратор",
+    "storekeeper": "Менеджер склада",
+    "cashier": "Оператор",
+    "accountant": "Менеджер склада",
+}
+
+
+def _sync_group_by_position(user, position: str):
+    """
+    Align user group with selected position without touching other custom groups.
+    """
+    target_name = POSITION_GROUP_MAP.get(position)
+    if not target_name:
+        return
+    mapping_groups = list(Group.objects.filter(name__in=POSITION_GROUP_MAP.values()))
+    if not mapping_groups:
+        return  # setup_roles not executed yet
+    target_group = next((g for g in mapping_groups if g.name == target_name), None)
+    if not target_group:
+        return
+    to_remove = [g for g in mapping_groups if g.name != target_name]
+    if to_remove:
+        user.groups.remove(*to_remove)
+    user.groups.add(target_group)
 
 
 class StyledFormMixin:
@@ -140,6 +167,7 @@ class EmployeeForm(StyledFormMixin, forms.ModelForm):
         user = user_model.objects.create_user(username=username, password=password)
         user.is_active = status == Employee.ACTIVE
         user.save()
+        _sync_group_by_position(user, self.cleaned_data.get("position"))
 
         employee = super().save(commit=False)
         employee.user = user
@@ -218,6 +246,7 @@ class EmployeeUpdateForm(StyledFormMixin, forms.ModelForm):
         if self.cleaned_data.get("password1"):
             user.set_password(self.cleaned_data["password1"])
         user.save()
+        _sync_group_by_position(user, self.cleaned_data.get("position"))
 
         employee.user = user
         if commit:

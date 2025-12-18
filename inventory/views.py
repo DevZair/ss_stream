@@ -3,7 +3,6 @@ import base64
 from decimal import Decimal
 
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import ProtectedError
@@ -81,29 +80,14 @@ def _barcode_data_uri(code: str | None) -> str | None:
     return f"data:image/png;base64,{base64.b64encode(png_bytes).decode()}"
 
 
-def _ensure_ean13(value: str) -> str:
-    """
-    Deprecated: no longer used (оставлено для совместимости).
-    """
-    digits = "".join(ch for ch in value if ch.isdigit())
-    return digits
-
-
 def product_list(request):
     if not request.user.is_authenticated:
         return redirect("inventory:login")
-    employee_wh = _user_warehouse(request.user)
     products = (
         Product.objects.select_related("category")
         .annotate(total_stock=Coalesce(Sum("stocks__quantity"), 0))
         .order_by("name")
     )
-    next_receipt = (Sale.objects.order_by("-id").values_list("id", flat=True).first() or 0) + 1
-    categories = Category.objects.order_by("name")
-    categories = Category.objects.order_by("name")
-    categories = Category.objects.order_by("name")
-    categories = Category.objects.order_by("name")
-    categories = Category.objects.order_by("name")
     return render(
         request,
         "inventory/product_list.html",
@@ -798,9 +782,11 @@ def sales_report(request):
 
 def _export_sales_csv(sales_queryset):
     timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
-    response = HttpResponse(content_type="text/csv")
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="sales_{timestamp}.csv"'
-    writer = csv.writer(response)
+    # Добавляем BOM, чтобы Excel открыл UTF-8 корректно.
+    response.write("\ufeff")
+    writer = csv.writer(response, delimiter=";")
     writer.writerow(
         ["Дата", "Склад", "Товар", "Количество", "Цена", "Сумма", "Метод оплаты"]
     )
