@@ -130,6 +130,21 @@
                 {{ form.kaspi_amount }}
               </div>
             </div>
+            <div class="row g-3 mt-2 align-items-end">
+              <div class="col-md-5">
+                <label class="form-label" for="{{ form.cash_given.id_for_label }}">Наличные от клиента</label>
+                {{ form.cash_given }}
+              </div>
+              <div class="col-md-7">
+                <div class="change-box" id="change-box">
+                  <div>
+                    <div class="text-muted small" id="change-label">Сдача</div>
+                    <div class="text-muted small" id="change-hint">Укажите суммы оплаты</div>
+                  </div>
+                  <div class="fw-bold fs-4 mb-0 text-success" id="change-amount">0.00</div>
+                </div>
+              </div>
+            </div>
 
             <div class="mt-3">
               <label class="form-label" for="{{ form.payment_details.id_for_label }}">Комментарий</label>
@@ -187,6 +202,7 @@
 .pos-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 12px 0 12px; }
 .pos-warehouse-select select { min-width: 180px; }
 .pos-total-box { background: #f0f4ff; border: 1px solid #dce6ff; padding: 8px 12px; border-radius: 8px; }
+.change-box { background: #fffaf0; border: 1px solid #ffe0b3; border-radius: 10px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; }
 .items-list { max-height: 520px; overflow-y: auto; }
 .stacked-cards { display: flex; flex-direction: column; gap: 12px; }
 .soft-card { background: linear-gradient(180deg, #f9fafc 0%, #f3f6fb 100%); border: 1px solid #e7ecf5; border-radius: 14px; box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06); padding: 10px; }
@@ -243,11 +259,16 @@
     const productCards = Array.from(document.querySelectorAll('.product-card'));
     const categoryPills = Array.from(document.querySelectorAll('.category-pill'));
     const globalSearch = document.getElementById('product-search-global');
+    const cashGivenInput = document.getElementById('id_cash_given');
+    const changeAmountEl = document.getElementById('change-amount');
+    const changeLabelEl = document.getElementById('change-label');
+    const changeHintEl = document.getElementById('change-hint');
 
     const parseVal = (el) => {
       const v = parseFloat(el && el.value);
       return isNaN(v) ? 0 : v;
     };
+    const formatMoney = (val) => Number(val || 0).toFixed(2);
 
     const ensureWarehouseSelected = (silent = false) => {
       const selected = warehouseSelect && warehouseSelect.value;
@@ -270,18 +291,31 @@
 
     const applySplit = (total) => {
       const method = methodSelect ? (methodSelect.value || 'cash') : 'cash';
-      const totalStr = Number(total || 0).toFixed(2);
+      const totalStr = formatMoney(total);
       const zero = '0.00';
-      if (method === 'mixed') return;
       if (method === 'delayed') {
         if (cashInput) cashInput.value = zero;
         if (halykInput) halykInput.value = zero;
         if (kaspiInput) kaspiInput.value = zero;
+        if (cashGivenInput) cashGivenInput.value = zero;
         return;
       }
-      if (cashInput) cashInput.value = method === 'cash' ? totalStr : zero;
-      if (halykInput) halykInput.value = method === 'halyk' ? totalStr : zero;
-      if (kaspiInput) kaspiInput.value = method === 'kaspi' ? totalStr : zero;
+      if (method !== 'mixed') {
+        if (cashInput) cashInput.value = method === 'cash' ? totalStr : zero;
+        if (halykInput) halykInput.value = method === 'halyk' ? totalStr : zero;
+        if (kaspiInput) kaspiInput.value = method === 'kaspi' ? totalStr : zero;
+        return;
+      }
+      const halykVal = parseVal(halykInput);
+      const kaspiVal = parseVal(kaspiInput);
+      const cashVal = parseVal(cashInput);
+      const cashGiven = parseVal(cashGivenInput);
+      const anyFilled = (halykVal + kaspiVal + cashVal + cashGiven) > 0;
+      if (anyFilled) return;
+      const neededCash = Math.max(total - (halykVal + kaspiVal), 0);
+      if (cashInput) {
+        cashInput.value = formatMoney(neededCash);
+      }
     };
 
     const lockPaymentFields = () => {
@@ -302,6 +336,54 @@
         const locked = method === 'delayed' || (method !== 'mixed' && method !== key);
         lockInput(el, locked);
       });
+      const allowCashGiven = method === 'cash' || method === 'mixed';
+      lockInput(cashGivenInput, method === 'delayed' || !allowCashGiven);
+      if (!allowCashGiven && cashGivenInput) {
+        cashGivenInput.value = '0';
+      }
+    };
+
+    const updateChangeInfo = () => {
+      if (!changeAmountEl) return;
+      const method = methodSelect ? (methodSelect.value || 'cash') : 'cash';
+      const total = parseVal(totalInput);
+      const halykVal = parseVal(halykInput);
+      const kaspiVal = parseVal(kaspiInput);
+      const cashVal = parseVal(cashInput);
+      const cashGiven = parseVal(cashGivenInput) || cashVal;
+      let label = 'Сдача';
+      let hint = 'Без сдачи.';
+      let value = 0;
+      if (method === 'cash' || method === 'mixed') {
+        const paid = cashGiven + halykVal + kaspiVal;
+        const diff = paid - total;
+        value = Math.abs(diff);
+        if (diff < 0) {
+          label = 'Не хватает';
+          hint = 'Добавьте оплату или скорректируйте суммы.';
+        } else if (diff > 0) {
+          hint = 'Верните покупателю указанную сумму.';
+        }
+      } else if (method === 'delayed') {
+        label = 'Сдача';
+        hint = 'Оплата позже, сдача не требуется.';
+        value = 0;
+      } else {
+        label = 'Сдача';
+        hint = 'Оплата без наличных.';
+        value = 0;
+      }
+      changeAmountEl.textContent = formatMoney(value);
+      changeAmountEl.classList.toggle('text-success', value > 0 && label === 'Сдача');
+      changeAmountEl.classList.toggle('text-danger', label === 'Не хватает');
+      if (changeLabelEl) changeLabelEl.textContent = label;
+      if (changeHintEl) changeHintEl.textContent = hint;
+    };
+
+    const refreshPayments = () => {
+      const total = parseVal(totalInput);
+      applySplit(total);
+      updateChangeInfo();
     };
 
     const recalcTotal = () => {
@@ -317,9 +399,9 @@
         if (lineTotalEl) lineTotalEl.textContent = lineTotal.toFixed(2);
         total += lineTotal;
       });
-      if (totalInput) totalInput.value = total.toFixed(2);
-      if (totalDisplay) totalDisplay.textContent = total.toFixed(2);
-      applySplit(total);
+      if (totalInput) totalInput.value = formatMoney(total);
+      if (totalDisplay) totalDisplay.textContent = formatMoney(total);
+      refreshPayments();
     };
 
     const findRowByProduct = (productId) => {
@@ -552,10 +634,15 @@
     if (methodSelect) {
       methodSelect.addEventListener('change', () => {
         lockPaymentFields();
-        applySplit(parseVal(totalInput));
+        refreshPayments();
       });
       lockPaymentFields();
     }
+
+    [halykInput, kaspiInput, cashGivenInput, cashInput].forEach((el) => {
+      if (!el) return;
+      el.addEventListener('input', () => refreshPayments());
+    });
 
     document.querySelector('form')?.addEventListener('submit', (e) => {
       if (!ensureWarehouseSelected()) {

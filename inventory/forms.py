@@ -343,6 +343,13 @@ class MovementForm(StyledFormMixin, forms.ModelForm):
 
 
 class SalePaymentForm(StyledFormMixin, forms.ModelForm):
+    cash_given = forms.DecimalField(
+        required=False,
+        min_value=0,
+        label="Наличные от клиента",
+        widget=forms.NumberInput(attrs={"step": "0.01", "placeholder": "0"}),
+    )
+
     def __init__(self, *args, **kwargs):
         user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
@@ -350,7 +357,7 @@ class SalePaymentForm(StyledFormMixin, forms.ModelForm):
             wh = user.employee_profile.warehouse
             self.fields["warehouse"].queryset = Warehouse.objects.filter(pk=wh.pk)
             self.fields["warehouse"].initial = wh
-        for amount_field in ("cash_amount", "halyk_amount", "kaspi_amount"):
+        for amount_field in ("cash_amount", "halyk_amount", "kaspi_amount", "cash_given"):
             if amount_field in self.fields:
                 self.fields[amount_field].widget.attrs.setdefault("step", "0.01")
                 self.fields[amount_field].widget.attrs.setdefault("placeholder", "0")
@@ -386,6 +393,8 @@ class SalePaymentForm(StyledFormMixin, forms.ModelForm):
         cash = self.cleaned_data.get("cash_amount") or Decimal("0.00")
         halyk = self.cleaned_data.get("halyk_amount") or Decimal("0.00")
         kaspi = self.cleaned_data.get("kaspi_amount") or Decimal("0.00")
+        cash_given = self.cleaned_data.get("cash_given") or Decimal("0.00")
+        change_due = Decimal("0.00")
         if method == "delayed":
             cash = halyk = kaspi = Decimal("0.00")
         elif method != "mixed":
@@ -401,11 +410,33 @@ class SalePaymentForm(StyledFormMixin, forms.ModelForm):
             if paid_sum <= 0:
                 cash = total
                 halyk = kaspi = Decimal("0.00")
-            elif paid_sum != total:
+            else:
                 cash = cash + (total - paid_sum)
+                if cash < 0:
+                    overpay = -cash
+                    cash = Decimal("0.00")
+                    if halyk >= overpay:
+                        halyk -= overpay
+                        overpay = Decimal("0.00")
+                    else:
+                        overpay -= halyk
+                        halyk = Decimal("0.00")
+                    if overpay > 0:
+                        kaspi = max(kaspi - overpay, Decimal("0.00"))
+                paid_sum = cash + halyk + kaspi
+                if paid_sum != total:
+                    cash = cash + (total - paid_sum)
+            cash = max(cash, Decimal("0.00"))
+        if method in ("cash", "mixed"):
+            paid_total = cash_given + halyk + kaspi
+            diff = paid_total - total
+            if diff > 0:
+                change_due = diff
         self.cleaned_data["cash_amount"] = cash
         self.cleaned_data["halyk_amount"] = halyk
         self.cleaned_data["kaspi_amount"] = kaspi
+        self.cleaned_data["cash_given"] = cash_given
+        self.cleaned_data["change_due"] = change_due
 
 
 class SaleItemForm(StyledFormMixin, forms.ModelForm):

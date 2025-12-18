@@ -731,17 +731,16 @@ def sales_report(request):
         (F("items__price") - F("items__product__purchase_price")) * F("items__quantity"),
         output_field=DecimalField(max_digits=14, decimal_places=2),
     )
+    zero_decimal = Value(0, output_field=DecimalField(max_digits=14, decimal_places=2))
     sales = sales.annotate(
-        profit=Coalesce(Sum(profit_expression), Value(0, output_field=DecimalField(max_digits=14, decimal_places=2))),
         total_items=Coalesce(Sum("items__quantity"), 0),
     )
     sales_count = sales.count()
 
-    zero_decimal = Value(0, output_field=DecimalField(max_digits=14, decimal_places=2))
     raw_stats = sales.aggregate(
         total_qty=Coalesce(Sum("items__quantity"), 0),
         total_amount=Coalesce(Sum("total"), zero_decimal),
-        total_profit=Coalesce(Sum("profit"), zero_decimal),
+        total_profit=Coalesce(Sum(profit_expression), zero_decimal),
         kaspi_total=Coalesce(
             Sum("total", filter=Q(payment_method="kaspi")), zero_decimal
         ),
@@ -760,6 +759,74 @@ def sales_report(request):
     if request.GET.get("export") == "csv":
         return _export_sales_csv(sales)
 
+    # Сбор данных для диаграмм и сводных блоков.
+    trend_qs = (
+        sales.values("created_at__date")
+        .annotate(
+            total_amount=Coalesce(Sum("total"), zero_decimal),
+            total_profit=Coalesce(Sum(profit_expression), zero_decimal),
+        )
+        .order_by("created_at__date")
+    )
+    trend_data = [
+        {
+            "date": entry["created_at__date"].isoformat(),
+            "total": float(entry["total_amount"] or 0),
+            "profit": float(entry["total_profit"] or 0),
+        }
+        for entry in trend_qs
+    ]
+
+    payment_method_map = dict(Sale.PAYMENT_METHODS)
+    payment_breakdown = list(
+        sales.values("payment_method")
+        .annotate(total_amount=Coalesce(Sum("total"), zero_decimal))
+        .order_by("payment_method")
+    )
+    payment_chart = {
+        "labels": [
+            payment_method_map.get(entry["payment_method"], entry["payment_method"])
+            for entry in payment_breakdown
+        ],
+        "data": [float(entry["total_amount"] or 0) for entry in payment_breakdown],
+    }
+
+    warehouse_summary = list(
+        sales.values("warehouse__name")
+        .annotate(
+            total_amount=Coalesce(Sum("total"), zero_decimal),
+            total_profit=Coalesce(Sum(profit_expression), zero_decimal),
+            total_items=Coalesce(Sum("items__quantity"), 0),
+        )
+        .order_by("-total_amount")
+    )
+
+    sale_ids_subquery = sales.values("id")
+    category_summary = list(
+        SaleItem.objects.filter(sale_id__in=sale_ids_subquery)
+        .values("product__category__name")
+        .annotate(
+            total_qty=Coalesce(Sum("quantity"), 0),
+            total_amount=Coalesce(Sum("total"), zero_decimal),
+        )
+        .order_by("-total_amount")[:8]
+    )
+
+    top_products = list(
+        SaleItem.objects.filter(sale_id__in=sale_ids_subquery)
+        .values("product__name")
+        .annotate(
+            total_qty=Coalesce(Sum("quantity"), 0),
+            total_amount=Coalesce(Sum("total"), zero_decimal),
+        )
+        .order_by("-total_qty", "-total_amount")[:8]
+    )
+
+    chart_payload = {
+        "trend": trend_data,
+        "payments": payment_chart,
+    }
+
     query_params = request.GET.copy()
     query_params["export"] = "csv"
     export_url = f"{reverse('inventory:sales_report')}?{query_params.urlencode()}"
@@ -776,6 +843,12 @@ def sales_report(request):
             "sales_count": sales_count,
             "export_url": export_url,
             "employee_wh": employee_wh,
+            "trend_data": trend_data,
+            "payment_chart": payment_chart,
+            "warehouse_summary": warehouse_summary,
+            "category_summary": category_summary,
+            "top_products": top_products,
+            "chart_payload": chart_payload,
         },
     )
 

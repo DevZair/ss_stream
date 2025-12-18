@@ -227,7 +227,6 @@ class Incoming(models.Model):
         with transaction.atomic():
             if self.pk:
                 prev = Incoming.objects.select_for_update().get(pk=self.pk)
-                # вернуть старый приход
                 adjust_stock(prev.warehouse, prev.product, -prev.quantity)
             super().save(*args, **kwargs)
             adjust_stock(self.warehouse, self.product, self.quantity)
