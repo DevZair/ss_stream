@@ -32,7 +32,3 @@
 ## Тесты
 - Юнит-тесты критических операций: `python3 manage.py test inventory.tests` (валидация остатков, движение, продажа, отчет CSV).
 - Для SQLite-тестов установить `DJANGO_DB_ENGINE=sqlite`.
-
-## Отчет и защита
-- Шаблон отчета: `docs/report_outline.md`; презентация: `docs/presentation_outline.md`.
-- Добавить скриншоты UI/БД в отчет и отметить прохождение тестов и бэкапов.
